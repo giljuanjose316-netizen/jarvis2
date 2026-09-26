@@ -16,7 +16,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
       method: "POST",
       headers: {
         "xi-api-key": apiKey,
@@ -30,7 +30,8 @@ export default async function handler(req, res) {
           stability: 0.55,
           similarity_boost: 0.8,
           style: 0.25,
-          use_speaker_boost: true
+          use_speaker_boost: true,
+          speed: 0.95
         }
       })
     });
