@@ -11,13 +11,13 @@ const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogni
 let cameraStream = null;
 let selectedVoice = null;
 
-function loadMaleVoice() {
+function loadJarvisVoice() {
   if (!("speechSynthesis" in window)) return;
 
   const voices = window.speechSynthesis.getVoices();
   const spanishVoices = voices.filter((voice) => /^es(-|_)/i.test(voice.lang));
 
-  // Prefer voices whose system name commonly indicates a male voice.
+  // Prefer a Spanish voice with a masculine-sounding system name when available.
   selectedVoice = spanishVoices.find((voice) => /male|hombre|jorge|diego|carlos|raul|pablo|miguel|andres/i.test(voice.name))
     || spanishVoices.find((voice) => /es-CO/i.test(voice.lang))
     || spanishVoices[0]
@@ -27,8 +27,8 @@ function loadMaleVoice() {
 }
 
 if ("speechSynthesis" in window) {
-  loadMaleVoice();
-  window.speechSynthesis.addEventListener("voiceschanged", loadMaleVoice);
+  loadJarvisVoice();
+  window.speechSynthesis.addEventListener("voiceschanged", loadJarvisVoice);
 }
 
 function speak(text) {
@@ -38,9 +38,12 @@ function speak(text) {
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = selectedVoice?.lang || "es-CO";
   utterance.voice = selectedVoice;
-  utterance.rate = 0.86;
-  utterance.pitch = 0.68;
+
+  // JARVIS-style delivery: calm, deliberate and slightly deep.
+  utterance.rate = 0.84;
+  utterance.pitch = 0.62;
   utterance.volume = 1;
+
   window.speechSynthesis.speak(utterance);
 }
 
