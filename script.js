@@ -10,8 +10,9 @@ function speak(text) {
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "es-CO";
-  utterance.rate = 0.9;
-  utterance.pitch = 0.9;
+  utterance.rate = 0.88;
+  utterance.pitch = 0.72;
+  utterance.volume = 1;
   window.speechSynthesis.speak(utterance);
 }
 
