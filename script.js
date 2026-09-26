@@ -41,7 +41,33 @@ async function speak(text) {
   }
 }
 
-async function startCamera() {
+async 
+async function openLocalApp(app, label) {
+  status.textContent = `Abriendo ${label}...`;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:3000/open?app=${encodeURIComponent(app)}`,
+      {
+        method: "GET",
+        cache: "no-store"
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Bridge " + response.status);
+    }
+
+    status.textContent = `${label} abierto.`;
+    speak(`Abriendo ${label}, señor.`);
+  } catch (error) {
+    console.error(`Error abriendo ${label}:`, error);
+    status.textContent = `No se pudo abrir ${label}.`;
+    speak(`No puedo abrir ${label}. Verifique que el puente de Jarvis esté activo, señor.`);
+  }
+}
+
+function startCamera() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     cameraStatus.textContent = "Este navegador no permite acceder a la cámara.";
     return false;
@@ -131,26 +157,21 @@ if (!SpeechRecognition) {
     const asksToDisableCamera = /\b(desactiva|desactivar|apaga|apagar|cierra|cerrar)\s+(la\s+)?camara\b/.test(normalized);
     const asksToEnableCamera = /\b(activa|activar|enciende|encender|abre|abrir)\s+(la\s+)?camara\b/.test(normalized);
     const asksToOpenRoblox = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+roblox\b/.test(normalized);
+    const asksToOpenChrome = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(google\s+chrome|chrome)\b/.test(normalized);
+    const asksToOpenVSCode = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(visual\s+studio\s+code|vs\s*code|visual\s+code)\b/.test(normalized);
+    const asksToOpenNotepad = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(bloc\s+de\s+notas|notas|notepad)\b/.test(normalized);
+    const asksToOpenCalculator = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(calculadora|calculator)\b/.test(normalized);
 
     if (asksToOpenRoblox) {
-      status.textContent = "Abriendo Roblox...";
-      try {
-        const response = await fetch("http://127.0.0.1:3000/roblox", {
-          method: "GET",
-          cache: "no-store"
-        });
-
-        if (!response.ok) {
-          throw new Error("Bridge " + response.status);
-        }
-
-        status.textContent = "Roblox abierto.";
-        speak("Abriendo Roblox, señor.");
-      } catch (error) {
-        console.error("Error con el puente de Roblox:", error);
-        status.textContent = "No se pudo conectar con el puente de Roblox.";
-        speak("No puedo abrir Roblox. Verifique que el puente de Jarvis esté activo, señor.");
-      }
+      await openLocalApp("roblox", "Roblox");
+    } else if (asksToOpenChrome) {
+      await openLocalApp("chrome", "Chrome");
+    } else if (asksToOpenVSCode) {
+      await openLocalApp("vscode", "Visual Studio Code");
+    } else if (asksToOpenNotepad) {
+      await openLocalApp("notepad", "Bloc de notas");
+    } else if (asksToOpenCalculator) {
+      await openLocalApp("calculator", "Calculadora");
     } else if (asksToDisableCamera) {
       stopCamera();
     } else if (asksToEnableCamera) {
