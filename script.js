@@ -155,11 +155,18 @@ if (!SpeechRecognition) {
     const asksForPhoto = /\b(toma|tomar|saca|sacar)\s+(una\s+)?foto\b/.test(normalized);
     const asksToDisableCamera = /\b(desactiva|desactivar|apaga|apagar|cierra|cerrar)\s+(la\s+)?camara\b/.test(normalized);
     const asksToEnableCamera = /\b(activa|activar|enciende|encender|abre|abrir)\s+(la\s+)?camara\b/.test(normalized);
+
     const asksToOpenRoblox = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+roblox\b/.test(normalized);
     const asksToOpenChrome = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(google\s+chrome|chrome)\b/.test(normalized);
     const asksToOpenVSCode = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(visual\s+studio\s+code|vs\s*code|visual\s+code)\b/.test(normalized);
     const asksToOpenNotepad = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(bloc\s+de\s+notas|notas|notepad)\b/.test(normalized);
     const asksToOpenCalculator = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(calculadora|calculator)\b/.test(normalized);
+
+    const asksToOpenDownloads = /\b(abre|abrir|inicia|iniciar|muestra|mostrar)\s+(la\s+)?(carpeta\s+de\s+)?descargas\b/.test(normalized);
+    const asksToOpenDocuments = /\b(abre|abrir|inicia|iniciar|muestra|mostrar)\s+(la\s+)?(carpeta\s+de\s+)?documentos\b/.test(normalized);
+    const asksToOpenDesktop = /\b(abre|abrir|inicia|iniciar|muestra|mostrar)\s+(el\s+)?(escritorio|desktop)\b/.test(normalized);
+    const asksToOpenExplorer = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(el\s+)?(explorador|explorador\s+de\s+archivos|archivos)\b/.test(normalized);
+    const asksToOpenSettings = /\b(abre|abrir|inicia|iniciar|muestra|mostrar)\s+(la\s+)?(configuracion|ajustes)\b/.test(normalized);
 
     if (asksToOpenRoblox) {
       await openLocalApp("roblox", "Roblox");
@@ -171,6 +178,16 @@ if (!SpeechRecognition) {
       await openLocalApp("notepad", "Bloc de notas");
     } else if (asksToOpenCalculator) {
       await openLocalApp("calculator", "Calculadora");
+    } else if (asksToOpenDownloads) {
+      await openLocalApp("downloads", "Descargas");
+    } else if (asksToOpenDocuments) {
+      await openLocalApp("documents", "Documentos");
+    } else if (asksToOpenDesktop) {
+      await openLocalApp("desktop", "Escritorio");
+    } else if (asksToOpenExplorer) {
+      await openLocalApp("explorer", "Explorador de archivos");
+    } else if (asksToOpenSettings) {
+      await openLocalApp("settings", "Configuración");
     } else if (asksToDisableCamera) {
       stopCamera();
     } else if (asksToEnableCamera) {
