@@ -15,21 +15,28 @@
       <h1>JARVIS</h1>
       <p id="status">Sistema listo.</p>
 
-      <button id="micButton" type="button" aria-label="Activar micrófono">
-        <span aria-hidden="true">🎙</span>
-      </button>
+      <div class="assistant-layout">
+        <div class="camera-area">
+          <div class="camera-frame">
+            <video id="camera" autoplay playsinline muted></video>
+            <canvas id="photoCanvas" hidden></canvas>
+            <div class="camera-overlay" aria-hidden="true"></div>
+          </div>
+          <p id="cameraStatus">Cámara inactiva.</p>
+        </div>
 
-      <div class="camera-area">
-        <video id="camera" autoplay playsinline muted></video>
-        <canvas id="photoCanvas" hidden></canvas>
-        <p id="cameraStatus">Cámara inactiva.</p>
-        <div class="camera-controls">
-          <button id="cameraButton" type="button">Activar cámara</button>
-          <button id="cameraOffButton" type="button" disabled>Desactivar cámara</button>
+        <div class="controls-area">
+          <button id="micButton" type="button" aria-label="Activar micrófono">
+            <span aria-hidden="true">🎙</span>
+          </button>
+          <div class="camera-controls">
+            <button id="cameraButton" type="button">Activar cámara</button>
+            <button id="cameraOffButton" type="button" disabled>Desactivar cámara</button>
+          </div>
+          <p class="hint">Di: «Jarvis, toma una foto» o «Jarvis, desactiva la cámara».</p>
         </div>
       </div>
 
-      <p class="hint">Di: «Jarvis, toma una foto» o «Jarvis, desactiva la cámara».</p>
       <p id="transcript" class="transcript" aria-live="polite"></p>
     </section>
   </main>
