@@ -130,8 +130,28 @@ if (!SpeechRecognition) {
     const asksForPhoto = /\b(toma|tomar|saca|sacar)\s+(una\s+)?foto\b/.test(normalized);
     const asksToDisableCamera = /\b(desactiva|desactivar|apaga|apagar|cierra|cerrar)\s+(la\s+)?camara\b/.test(normalized);
     const asksToEnableCamera = /\b(activa|activar|enciende|encender|abre|abrir)\s+(la\s+)?camara\b/.test(normalized);
+    const asksToOpenRoblox = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+roblox\b/.test(normalized);
 
-    if (asksToDisableCamera) {
+    if (asksToOpenRoblox) {
+      status.textContent = "Abriendo Roblox...";
+      try {
+        const response = await fetch("http://127.0.0.1:3000/roblox", {
+          method: "GET",
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          throw new Error("Bridge " + response.status);
+        }
+
+        status.textContent = "Roblox abierto.";
+        speak("Abriendo Roblox, señor.");
+      } catch (error) {
+        console.error("Error con el puente de Roblox:", error);
+        status.textContent = "No se pudo conectar con el puente de Roblox.";
+        speak("No puedo abrir Roblox. Verifique que el puente de Jarvis esté activo, señor.");
+      }
+    } else if (asksToDisableCamera) {
       stopCamera();
     } else if (asksToEnableCamera) {
       status.textContent = "Activando cámara...";
