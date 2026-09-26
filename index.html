@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Jarvis - asistente personal por voz">
+  <title>Jarvis</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+    <section class="jarvis-panel" aria-label="Jarvis">
+      <div class="status-dot" aria-hidden="true"></div>
+      <p class="eyebrow">PERSONAL VOICE ASSISTANT</p>
+      <h1>JARVIS</h1>
+      <p id="status">Sistema listo.</p>
+      <button id="micButton" type="button" aria-label="Activar micrófono">
+        <span aria-hidden="true">🎙</span>
+      </button>
+      <p class="hint">Pulsa el micrófono para comenzar.</p>
+      <p id="transcript" class="transcript" aria-live="polite"></p>
+    </section>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>
