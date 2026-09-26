@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Jarvis - asistente personal por voz">
+  <meta name="description" content="Jarvis - asistente personal por voz con cámara">
   <title>Jarvis</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -14,10 +14,19 @@
       <p class="eyebrow">PERSONAL VOICE ASSISTANT</p>
       <h1>JARVIS</h1>
       <p id="status">Sistema listo.</p>
+
       <button id="micButton" type="button" aria-label="Activar micrófono">
         <span aria-hidden="true">🎙</span>
       </button>
-      <p class="hint">Pulsa el micrófono para comenzar.</p>
+
+      <div class="camera-area">
+        <video id="camera" autoplay playsinline muted></video>
+        <canvas id="photoCanvas" hidden></canvas>
+        <p id="cameraStatus">Cámara inactiva.</p>
+        <button id="cameraButton" type="button">Activar cámara</button>
+      </div>
+
+      <p class="hint">Pulsa el micrófono y di: «Jarvis, toma una foto».</p>
       <p id="transcript" class="transcript" aria-live="polite"></p>
     </section>
   </main>
