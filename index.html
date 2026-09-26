@@ -23,10 +23,13 @@
         <video id="camera" autoplay playsinline muted></video>
         <canvas id="photoCanvas" hidden></canvas>
         <p id="cameraStatus">Cámara inactiva.</p>
-        <button id="cameraButton" type="button">Activar cámara</button>
+        <div class="camera-controls">
+          <button id="cameraButton" type="button">Activar cámara</button>
+          <button id="cameraOffButton" type="button" disabled>Desactivar cámara</button>
+        </div>
       </div>
 
-      <p class="hint">Pulsa el micrófono y di: «Jarvis, toma una foto».</p>
+      <p class="hint">Di: «Jarvis, toma una foto» o «Jarvis, desactiva la cámara».</p>
       <p id="transcript" class="transcript" aria-live="polite"></p>
     </section>
   </main>
