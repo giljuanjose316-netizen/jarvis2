@@ -1,19 +1,42 @@
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 :root {
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #f5f7fa;
-  background: #070b12;
+  font-family: "Segoe UI", Inter, system-ui, sans-serif;
+  color: #dff9ff;
+  background: #02070d;
+  --cyan: #19d9ff;
+  --cyan-soft: rgba(25, 217, 255, 0.22);
+  --line: rgba(25, 217, 255, 0.28);
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  overflow: hidden;
   background:
-    radial-gradient(circle at center, rgba(0, 180, 255, 0.12), transparent 35%),
-    #070b12;
+    radial-gradient(circle at 50% 48%, rgba(0, 160, 220, 0.16), transparent 28%),
+    radial-gradient(circle at 50% 50%, transparent 0 34%, rgba(25, 217, 255, 0.035) 34.2% 34.5%, transparent 34.8%),
+    repeating-linear-gradient(0deg, rgba(25, 217, 255, 0.025) 0 1px, transparent 1px 5px),
+    #02070d;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+body::before {
+  background: linear-gradient(rgba(25,217,255,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(25,217,255,.08) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle, black, transparent 72%);
+}
+
+body::after {
+  background: repeating-linear-gradient(90deg, transparent 0 10px, rgba(25,217,255,.025) 10px 11px);
+  opacity: .35;
 }
 
 .app {
@@ -24,71 +47,125 @@ body {
 }
 
 .jarvis-panel {
-  width: min(680px, 100%);
-  padding: 56px 32px;
+  position: relative;
+  width: min(920px, 100%);
+  min-height: 680px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 28px;
-  background: rgba(10, 16, 26, 0.82);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(12px);
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(3,14,23,.72), rgba(2,8,14,.88));
+  clip-path: polygon(5% 0, 95% 0, 100% 7%, 100% 93%, 95% 100%, 5% 100%, 0 93%, 0 7%);
+  box-shadow: inset 0 0 55px rgba(25,217,255,.06), 0 0 55px rgba(0,160,220,.12);
+  overflow: hidden;
+}
+
+.jarvis-panel::before {
+  content: "";
+  position: absolute;
+  width: 440px;
+  height: 440px;
+  border: 1px solid rgba(25,217,255,.14);
+  border-radius: 50%;
+  box-shadow: 0 0 0 22px rgba(25,217,255,.025), 0 0 0 62px rgba(25,217,255,.018), 0 0 80px rgba(25,217,255,.12);
+  animation: rotate 18s linear infinite;
+}
+
+.jarvis-panel::after {
+  content: "";
+  position: absolute;
+  width: 520px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  box-shadow: 0 0 12px var(--cyan);
+  animation: scan 4s ease-in-out infinite;
 }
 
 .status-dot {
-  width: 10px;
-  height: 10px;
-  margin: 0 auto 18px;
+  position: relative;
+  z-index: 2;
+  width: 8px;
+  height: 8px;
+  margin-bottom: 16px;
   border-radius: 50%;
-  background: #37d67a;
-  box-shadow: 0 0 18px rgba(55, 214, 122, 0.8);
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan), 0 0 24px var(--cyan);
 }
 
 .eyebrow {
+  position: relative;
+  z-index: 2;
   margin: 0;
-  font-size: 0.75rem;
-  letter-spacing: 0.24em;
-  opacity: 0.6;
+  color: var(--cyan);
+  font-size: .7rem;
+  letter-spacing: .38em;
+  opacity: .75;
 }
 
 h1 {
-  margin: 12px 0 8px;
-  font-size: clamp(3rem, 10vw, 6rem);
-  letter-spacing: 0.12em;
+  position: relative;
+  z-index: 2;
+  margin: 8px 0;
+  font-size: clamp(3.5rem, 11vw, 7rem);
+  font-weight: 300;
+  letter-spacing: .28em;
+  padding-left: .28em;
+  text-shadow: 0 0 12px rgba(25,217,255,.75), 0 0 35px rgba(25,217,255,.25);
 }
 
 #status {
+  position: relative;
+  z-index: 2;
   margin: 0 0 28px;
-  opacity: 0.75;
+  color: rgba(223,249,255,.72);
+  letter-spacing: .12em;
+  font-size: .82rem;
+  text-transform: uppercase;
 }
 
 #micButton {
-  width: 96px;
-  height: 96px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  position: relative;
+  z-index: 3;
+  width: 116px;
+  height: 116px;
+  border: 1px solid rgba(25,217,255,.65);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  color: inherit;
-  font-size: 2.2rem;
+  background: radial-gradient(circle, rgba(25,217,255,.16), rgba(2,8,14,.85) 62%);
+  color: var(--cyan);
+  font-size: 2.4rem;
   cursor: pointer;
-  transition: transform 0.2s ease, background 0.2s ease;
+  box-shadow: 0 0 0 8px rgba(25,217,255,.035), 0 0 28px rgba(25,217,255,.3), inset 0 0 24px rgba(25,217,255,.12);
+  transition: transform .2s ease, box-shadow .2s ease;
 }
 
 #micButton:hover {
   transform: scale(1.05);
-  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 12px rgba(25,217,255,.05), 0 0 45px rgba(25,217,255,.5), inset 0 0 30px rgba(25,217,255,.18);
 }
 
-#micButton:active {
-  transform: scale(0.97);
-}
+#micButton:active { transform: scale(.98); }
+#micButton:disabled { opacity: .4; cursor: not-allowed; }
 
 .hint,
 .transcript {
+  position: relative;
+  z-index: 2;
   min-height: 1.5em;
   margin: 24px 0 0;
-  opacity: 0.6;
+  color: rgba(223,249,255,.5);
+  font-size: .75rem;
+  letter-spacing: .08em;
 }
 
-.transcript {
-  opacity: 0.9;
+.transcript { color: #dff9ff; }
+
+@keyframes rotate { to { transform: rotate(360deg); } }
+@keyframes scan { 0%,100% { transform: translateY(-220px); opacity: 0; } 35%,65% { opacity: .65; } 50% { transform: translateY(220px); } }
+
+@media (max-width: 700px) {
+  .jarvis-panel { min-height: 600px; }
+  .jarvis-panel::before { width: 310px; height: 310px; }
+  .jarvis-panel::after { width: 330px; }
 }
