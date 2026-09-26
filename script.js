@@ -11,6 +11,21 @@ const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogni
 let cameraStream = null;
 let currentAudio = null;
 
+function browserSpeak(text) {
+  if (!("speechSynthesis" in window)) {
+    throw new Error("El navegador no tiene síntesis de voz.");
+  }
+
+  window.speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "es-CO";
+  utterance.rate = 1;
+  utterance.pitch = 1;
+
+  window.speechSynthesis.speak(utterance);
+}
+
 async function speak(text) {
   try {
     if (currentAudio) {
@@ -31,13 +46,22 @@ async function speak(text) {
     const audioBlob = await response.blob();
     const audioUrl = URL.createObjectURL(audioBlob);
     currentAudio = new Audio(audioUrl);
+
     currentAudio.onended = () => {
       URL.revokeObjectURL(audioUrl);
     };
+
     await currentAudio.play();
   } catch (error) {
-    console.error("Error con TTS:", error);
-    status.textContent = "No se pudo reproducir la voz de Jarvis.";
+    console.error("ElevenLabs no pudo reproducir el audio:", error);
+    status.textContent = "Usando voz del navegador...";
+    try {
+      browserSpeak(text);
+      status.textContent = "Jarvis activo.";
+    } catch (fallbackError) {
+      console.error("Error con voz del navegador:", fallbackError);
+      status.textContent = "No se pudo reproducir la voz de Jarvis.";
+    }
   }
 }
 
