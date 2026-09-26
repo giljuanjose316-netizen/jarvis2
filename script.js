@@ -4,6 +4,17 @@ const transcript = document.getElementById("transcript");
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+function speak(text) {
+  if (!("speechSynthesis" in window)) return;
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "es-CO";
+  utterance.rate = 0.9;
+  utterance.pitch = 0.9;
+  window.speechSynthesis.speak(utterance);
+}
+
 if (!SpeechRecognition) {
   status.textContent = "Este navegador no admite reconocimiento de voz.";
   micButton.disabled = true;
@@ -20,9 +31,20 @@ if (!SpeechRecognition) {
   });
 
   recognition.onresult = (event) => {
-    const text = event.results[0][0].transcript;
+    const text = event.results[0][0].transcript.trim();
     transcript.textContent = `Tú: ${text}`;
-    status.textContent = "He recibido tu comando.";
+
+    const normalized = text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+    if (/\bjarvis\b/.test(normalized)) {
+      status.textContent = "Jarvis activo.";
+      speak("Sí, señor.");
+    } else {
+      status.textContent = "Comando recibido.";
+    }
   };
 
   recognition.onerror = (event) => {
