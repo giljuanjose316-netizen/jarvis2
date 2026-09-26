@@ -4,6 +4,7 @@ const transcript = document.getElementById("transcript");
 const camera = document.getElementById("camera");
 const photoCanvas = document.getElementById("photoCanvas");
 const cameraButton = document.getElementById("cameraButton");
+const cameraOffButton = document.getElementById("cameraOffButton");
 const cameraStatus = document.getElementById("cameraStatus");
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -39,6 +40,8 @@ async function startCamera() {
     await camera.play();
     cameraStatus.textContent = "Cámara activa.";
     cameraButton.textContent = "Cámara activa";
+    cameraButton.disabled = true;
+    cameraOffButton.disabled = false;
     return true;
   } catch (error) {
     cameraStatus.textContent = "Permiso de cámara necesario.";
@@ -46,6 +49,21 @@ async function startCamera() {
     console.error(error);
     return false;
   }
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach((track) => track.stop());
+    cameraStream = null;
+  }
+
+  camera.srcObject = null;
+  cameraStatus.textContent = "Cámara inactiva.";
+  cameraButton.textContent = "Activar cámara";
+  cameraButton.disabled = false;
+  cameraOffButton.disabled = true;
+  status.textContent = "Cámara desactivada.";
+  speak("Cámara desactivada, señor.");
 }
 
 function takePhoto() {
@@ -74,6 +92,7 @@ function takePhoto() {
 }
 
 cameraButton.addEventListener("click", startCamera);
+cameraOffButton.addEventListener("click", stopCamera);
 
 if (!SpeechRecognition) {
   status.textContent = "Este navegador no admite reconocimiento de voz.";
@@ -101,8 +120,16 @@ if (!SpeechRecognition) {
 
     const saysJarvis = /\bjarvis\b/.test(normalized);
     const asksForPhoto = /\b(toma|tomar|saca|sacar)\s+(una\s+)?foto\b/.test(normalized);
+    const asksToDisableCamera = /\b(desactiva|desactivar|apaga|apagar|cierra|cerrar)\s+(la\s+)?camara\b/.test(normalized);
+    const asksToEnableCamera = /\b(activa|activar|enciende|encender|abre|abrir)\s+(la\s+)?camara\b/.test(normalized);
 
-    if (saysJarvis && asksForPhoto) {
+    if (asksToDisableCamera) {
+      stopCamera();
+    } else if (asksToEnableCamera) {
+      status.textContent = "Activando cámara...";
+      const cameraReady = await startCamera();
+      if (cameraReady) speak("Cámara activada, señor.");
+    } else if (saysJarvis && asksForPhoto) {
       status.textContent = "Preparando cámara...";
       const cameraReady = await startCamera();
       if (cameraReady) takePhoto();
