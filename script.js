@@ -41,7 +41,6 @@ async function speak(text) {
   }
 }
 
-async 
 async function openLocalApp(app, label) {
   status.textContent = `Abriendo ${label}...`;
 
@@ -67,7 +66,7 @@ async function openLocalApp(app, label) {
   }
 }
 
-function startCamera() {
+async function startCamera() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     cameraStatus.textContent = "Este navegador no permite acceder a la cámara.";
     return false;
