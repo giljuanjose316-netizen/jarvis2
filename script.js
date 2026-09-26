@@ -9,15 +9,37 @@ const cameraStatus = document.getElementById("cameraStatus");
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let cameraStream = null;
+let selectedVoice = null;
+
+function loadMaleVoice() {
+  if (!("speechSynthesis" in window)) return;
+
+  const voices = window.speechSynthesis.getVoices();
+  const spanishVoices = voices.filter((voice) => /^es(-|_)/i.test(voice.lang));
+
+  // Prefer voices whose system name commonly indicates a male voice.
+  selectedVoice = spanishVoices.find((voice) => /male|hombre|jorge|diego|carlos|raul|pablo|miguel|andres/i.test(voice.name))
+    || spanishVoices.find((voice) => /es-CO/i.test(voice.lang))
+    || spanishVoices[0]
+    || voices.find((voice) => /es(-|_)/i.test(voice.lang))
+    || voices[0]
+    || null;
+}
+
+if ("speechSynthesis" in window) {
+  loadMaleVoice();
+  window.speechSynthesis.addEventListener("voiceschanged", loadMaleVoice);
+}
 
 function speak(text) {
   if (!("speechSynthesis" in window)) return;
 
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "es-CO";
-  utterance.rate = 0.88;
-  utterance.pitch = 0.72;
+  utterance.lang = selectedVoice?.lang || "es-CO";
+  utterance.voice = selectedVoice;
+  utterance.rate = 0.86;
+  utterance.pitch = 0.68;
   utterance.volume = 1;
   window.speechSynthesis.speak(utterance);
 }
@@ -30,13 +52,9 @@ async function startCamera() {
 
   try {
     if (!cameraStream) {
-      cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
-        audio: false
-      });
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
       camera.srcObject = cameraStream;
     }
-
     await camera.play();
     cameraStatus.textContent = "Cámara activa.";
     cameraButton.textContent = "Cámara activa";
@@ -56,7 +74,6 @@ function stopCamera() {
     cameraStream.getTracks().forEach((track) => track.stop());
     cameraStream = null;
   }
-
   camera.srcObject = null;
   cameraStatus.textContent = "Cámara inactiva.";
   cameraButton.textContent = "Activar cámara";
@@ -75,15 +92,13 @@ function takePhoto() {
 
   photoCanvas.width = camera.videoWidth;
   photoCanvas.height = camera.videoHeight;
-
   const context = photoCanvas.getContext("2d");
   context.drawImage(camera, 0, 0, photoCanvas.width, photoCanvas.height);
 
   const photoUrl = photoCanvas.toDataURL("image/png");
   const link = document.createElement("a");
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   link.href = photoUrl;
-  link.download = `jarvis-foto-${timestamp}.png`;
+  link.download = `jarvis-foto-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
   link.click();
 
   status.textContent = "Foto tomada.";
@@ -112,11 +127,7 @@ if (!SpeechRecognition) {
   recognition.onresult = async (event) => {
     const text = event.results[0][0].transcript.trim();
     transcript.textContent = `Tú: ${text}`;
-
-    const normalized = text
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
+    const normalized = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
     const saysJarvis = /\bjarvis\b/.test(normalized);
     const asksForPhoto = /\b(toma|tomar|saca|sacar)\s+(una\s+)?foto\b/.test(normalized);
@@ -150,14 +161,10 @@ if (!SpeechRecognition) {
   };
 
   recognition.onend = () => {
-    if (status.textContent === "Escuchando...") {
-      status.textContent = "Sistema listo.";
-    }
+    if (status.textContent === "Escuchando...") status.textContent = "Sistema listo.";
   };
 }
 
 window.addEventListener("beforeunload", () => {
-  if (cameraStream) {
-    cameraStream.getTracks().forEach((track) => track.stop());
-  }
+  if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
 });
