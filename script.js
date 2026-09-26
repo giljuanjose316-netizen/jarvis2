@@ -9,41 +9,36 @@ const cameraStatus = document.getElementById("cameraStatus");
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let cameraStream = null;
-let selectedVoice = null;
+let currentAudio = null;
 
-function loadJarvisVoice() {
-  if (!("speechSynthesis" in window)) return;
+async function speak(text) {
+  try {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
 
-  const voices = window.speechSynthesis.getVoices();
-  const spanishVoices = voices.filter((voice) => /^es(-|_)/i.test(voice.lang));
+    const response = await fetch("/api/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
+    });
 
-  // Prefer a natural Spanish voice. Avoid extreme pitch changes because they often sound robotic.
-  selectedVoice = spanishVoices.find((voice) => /es-CO|es-MX|es-ES/i.test(voice.lang))
-    || spanishVoices[0]
-    || voices.find((voice) => /es(-|_)/i.test(voice.lang))
-    || voices[0]
-    || null;
-}
+    if (!response.ok) {
+      throw new Error(`TTS ${response.status}`);
+    }
 
-if ("speechSynthesis" in window) {
-  loadJarvisVoice();
-  window.speechSynthesis.addEventListener("voiceschanged", loadJarvisVoice);
-}
-
-function speak(text) {
-  if (!("speechSynthesis" in window)) return;
-
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = selectedVoice?.lang || "es-CO";
-  utterance.voice = selectedVoice;
-
-  // Natural assistant delivery instead of forcing an artificially low pitch.
-  utterance.rate = 0.90;
-  utterance.pitch = 0.92;
-  utterance.volume = 1;
-
-  window.speechSynthesis.speak(utterance);
+    const audioBlob = await response.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    currentAudio = new Audio(audioUrl);
+    currentAudio.onended = () => {
+      URL.revokeObjectURL(audioUrl);
+    };
+    await currentAudio.play();
+  } catch (error) {
+    console.error("Error con TTS:", error);
+    status.textContent = "No se pudo reproducir la voz de Jarvis.";
+  }
 }
 
 async function startCamera() {
