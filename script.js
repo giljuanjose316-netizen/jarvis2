@@ -17,9 +17,8 @@ function loadJarvisVoice() {
   const voices = window.speechSynthesis.getVoices();
   const spanishVoices = voices.filter((voice) => /^es(-|_)/i.test(voice.lang));
 
-  // Prefer a Spanish voice with a masculine-sounding system name when available.
-  selectedVoice = spanishVoices.find((voice) => /male|hombre|jorge|diego|carlos|raul|pablo|miguel|andres/i.test(voice.name))
-    || spanishVoices.find((voice) => /es-CO/i.test(voice.lang))
+  // Prefer a natural Spanish voice. Avoid extreme pitch changes because they often sound robotic.
+  selectedVoice = spanishVoices.find((voice) => /es-CO|es-MX|es-ES/i.test(voice.lang))
     || spanishVoices[0]
     || voices.find((voice) => /es(-|_)/i.test(voice.lang))
     || voices[0]
@@ -39,9 +38,9 @@ function speak(text) {
   utterance.lang = selectedVoice?.lang || "es-CO";
   utterance.voice = selectedVoice;
 
-  // JARVIS-style delivery: calm, deliberate and slightly deep.
-  utterance.rate = 0.84;
-  utterance.pitch = 0.62;
+  // Natural assistant delivery instead of forcing an artificially low pitch.
+  utterance.rate = 0.90;
+  utterance.pitch = 0.92;
   utterance.volume = 1;
 
   window.speechSynthesis.speak(utterance);
