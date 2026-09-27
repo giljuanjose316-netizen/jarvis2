@@ -245,6 +245,34 @@ async function openLocalApp(app, label) {
   }
 }
 
+async function closeLocalApp(app, label) {
+  status.textContent = `Cerrando ${label}...`;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:3000/close?app=${encodeURIComponent(app)}`,
+      { method: "GET", cache: "no-store" }
+    );
+
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      throw new Error(responseText || "Bridge " + response.status);
+    }
+
+    if (conversationContext.lastApp && conversationContext.lastApp.app === app) {
+      conversationContext.lastApp = null;
+    }
+
+    status.textContent = `${label} cerrado.`;
+    return true;
+  } catch (error) {
+    console.error(`Error cerrando ${label}:`, error);
+    status.textContent = `No se pudo cerrar ${label}.`;
+    return false;
+  }
+}
+
 async function startCamera() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     cameraStatus.textContent = "Este navegador no permite acceder a la cámara.";
@@ -398,16 +426,19 @@ function detectIntent(text) {
   }
 
   if (
-    /\b(cierra|cerrar|sal|salir|termina|terminar|apaga|apagar)\b/.test(command) &&
-    conversationContext.lastApp
+    /\b(cierra|cerrar|sal|salir|termina|terminar|apaga|apagar)\b/.test(command)
   ) {
-    return {
-      type: "close_app",
-      app: conversationContext.lastApp.app,
-      label: conversationContext.lastApp.label,
-      command,
-      normalized
-    };
+    const app = findReferencedApp(command);
+
+    if (app) {
+      return {
+        type: "close_app",
+        app: app.app,
+        label: app.label,
+        command,
+        normalized
+      };
+    }
   }
 
   if (/^(repite|repetir|otra vez|hazlo otra vez|haz eso otra vez|de nuevo)$/.test(command)) {
@@ -561,8 +592,11 @@ async function executePlan(plan) {
     }
 
     if (action.type === "close_app") {
-      plan.response = `Todavía no tengo permiso para cerrar ${action.label}, señor.`;
-      status.textContent = `Cierre de ${action.label} no implementado.`;
+      const closed = await closeLocalApp(action.app, action.label);
+
+      plan.response = closed
+        ? `Señor, ${action.label} ha sido cerrado.`
+        : `No pude cerrar ${action.label}, señor. Verifique que la aplicación esté abierta y que el puente de Jarvis esté activo.`;
     }
 
     if (action.type === "camera_on") {
