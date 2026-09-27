@@ -1,6 +1,6 @@
 (() => {
-  const constructors = [window.SpeechRecognition, window.webkitSpeechRecognition].filter(Boolean);
-  if (!constructors.length) return;
+  const NativeSpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!NativeSpeechRecognition) return;
 
   let pendingWhatsAppMessage = null;
 
@@ -95,35 +95,36 @@
     return false;
   }
 
-  function patchConstructor(RecognitionConstructor) {
-    const prototype = RecognitionConstructor.prototype;
-    if (!prototype || prototype.__jarvisWhatsAppPatched) return;
+  function createPatchedConstructor(Native) {
+    function PatchedSpeechRecognition(...args) {
+      const recognition = new Native(...args);
 
-    const descriptor = Object.getOwnPropertyDescriptor(prototype, "onresult");
-    if (!descriptor || typeof descriptor.set !== "function") return;
+      recognition.addEventListener("result", (event) => {
+        const text = event?.results?.[0]?.[0]?.transcript?.trim() || "";
+        if (!text) return;
 
-    Object.defineProperty(prototype, "onresult", {
-      configurable: descriptor.configurable,
-      enumerable: descriptor.enumerable,
-      get: descriptor.get,
-      set(handler) {
-        const wrappedHandler = async (event) => {
-          const text = event?.results?.[0]?.[0]?.transcript?.trim() || "";
-          if (handle(text)) return;
-          if (typeof handler === "function") return handler.call(this, event);
-        };
+        if (handle(text)) {
+          event.stopImmediatePropagation();
+        }
+      });
 
-        descriptor.set.call(this, wrappedHandler);
-      }
-    });
+      return recognition;
+    }
 
-    Object.defineProperty(prototype, "__jarvisWhatsAppPatched", {
-      value: true,
-      configurable: true
-    });
+    PatchedSpeechRecognition.prototype = Native.prototype;
+    Object.setPrototypeOf(PatchedSpeechRecognition, Native);
+    return PatchedSpeechRecognition;
   }
 
-  constructors.forEach(patchConstructor);
+  const patched = createPatchedConstructor(NativeSpeechRecognition);
+
+  if (window.SpeechRecognition === NativeSpeechRecognition) {
+    window.SpeechRecognition = patched;
+  }
+
+  if (window.webkitSpeechRecognition === NativeSpeechRecognition) {
+    window.webkitSpeechRecognition = patched;
+  }
 
   window.jarvisWhatsApp = {
     hasPendingMessage: () => Boolean(pendingWhatsAppMessage),
