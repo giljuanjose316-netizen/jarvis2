@@ -69,10 +69,10 @@
     if (pendingWhatsAppMessage && isConfirmation(clean)) {
       const confirmed = pendingWhatsAppMessage;
       pendingWhatsAppMessage = null;
+
       window.dispatchEvent(
         new CustomEvent("jarvis:whatsapp-confirmed", { detail: confirmed })
       );
-      speak(`Confirmado. El mensaje para ${confirmed.contact} quedó autorizado para envío.`);
 
       const status = document.getElementById("status");
       if (status) status.textContent = "Mensaje de WhatsApp confirmado.";
@@ -84,7 +84,7 @@
 
       if (message) {
         pendingWhatsAppMessage = message;
-        speak(`Voy a enviar a ${message.contact}: “${message.message}”. ¿Confirma?`);
+        speak(`Voy a preparar un mensaje para ${message.contact}: ${message.message}. ¿Confirma?`);
 
         const status = document.getElementById("status");
         if (status) status.textContent = "Esperando confirmación de WhatsApp...";
@@ -125,6 +125,66 @@
   if (window.webkitSpeechRecognition === NativeSpeechRecognition) {
     window.webkitSpeechRecognition = patched;
   }
+
+  // ============================================================
+  // CONEXIÓN CON JARVIS BRIDGE
+  // ============================================================
+
+  window.addEventListener("jarvis:whatsapp-confirmed", async (event) => {
+    const data = event.detail || {};
+    const contact = data.contact;
+    const message = data.message;
+
+    if (!contact || !message) {
+      speak("Faltan datos para preparar WhatsApp.");
+      return;
+    }
+
+    try {
+      const bridgeUrl =
+        "http://127.0.0.1:3000/whatsapp" +
+        `?contact=${encodeURIComponent(contact)}` +
+        `&message=${encodeURIComponent(message)}`;
+
+      const response = await fetch(bridgeUrl, {
+        method: "GET",
+        cache: "no-store"
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+      }
+
+      const whatsappUrl = await response.text();
+
+      if (!whatsappUrl.startsWith("https://web.whatsapp.com/")) {
+        throw new Error("El Bridge no devolvió un enlace válido de WhatsApp.");
+      }
+
+      window.open(whatsappUrl, "_blank");
+
+      const status = document.getElementById("status");
+      if (status) {
+        status.textContent = `WhatsApp preparado para ${contact}.`;
+      }
+
+      speak(
+        `WhatsApp está preparado para ${contact}. Revise el mensaje y pulse enviar cuando esté listo.`
+      );
+    } catch (error) {
+      console.error("Error de WhatsApp Bridge:", error);
+
+      const status = document.getElementById("status");
+      if (status) {
+        status.textContent = "No se pudo conectar con WhatsApp Bridge.";
+      }
+
+      speak(
+        "No pude preparar WhatsApp. Verifique que Bridge esté ejecutándose."
+      );
+    }
+  });
 
   window.jarvisWhatsApp = {
     hasPendingMessage: () => Boolean(pendingWhatsAppMessage),
