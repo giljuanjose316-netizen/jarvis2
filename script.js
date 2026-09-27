@@ -12,12 +12,20 @@ const memoryStatus = document.getElementById("memoryStatus");
 const clearMemoryButton = document.getElementById("clearMemoryButton");
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-const MEMORY_KEY = "jarvis_conversation_memory_v1";
-const MAX_MEMORY_ITEMS = 20;
+const MEMORY_KEY = "jarvis_conversation_memory_v2";
+const FACTS_KEY = "jarvis_semantic_memory_v1";
+const MAX_MEMORY_ITEMS = 30;
+const MAX_FACTS = 30;
 let cameraStream = null;
 let currentAudio = null;
 let jarvisActive = false;
 let conversationMemory = loadMemory();
+let semanticMemory = loadFacts();
+let conversationContext = {
+  lastIntent: null,
+  lastApp: null,
+  lastUserText: null
+};
 
 function browserSpeak(text) {
   if (!("speechSynthesis" in window)) throw new Error("El navegador no tiene síntesis de voz.");
@@ -71,33 +79,78 @@ function loadMemory() {
   }
 }
 
+function loadFacts() {
+  try {
+    const saved = localStorage.getItem(FACTS_KEY);
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("No se pudo cargar la memoria semántica:", error);
+    return [];
+  }
+}
+
 function saveMemory() {
   conversationMemory = conversationMemory.slice(-MAX_MEMORY_ITEMS);
   localStorage.setItem(MEMORY_KEY, JSON.stringify(conversationMemory));
   renderMemoryStatus();
 }
 
+function saveFacts() {
+  semanticMemory = semanticMemory.slice(-MAX_FACTS);
+  localStorage.setItem(FACTS_KEY, JSON.stringify(semanticMemory));
+  renderMemoryStatus();
+}
+
 function addMemory(role, text) {
-  conversationMemory.push({
-    role,
-    text,
-    time: new Date().toISOString()
-  });
+  conversationMemory.push({ role, text, time: new Date().toISOString() });
   saveMemory();
+}
+
+function rememberFact(key, value) {
+  const cleanValue = value.trim();
+  if (!cleanValue) return;
+  semanticMemory = semanticMemory.filter((item) => item.key !== key);
+  semanticMemory.push({ key, value: cleanValue, time: new Date().toISOString() });
+  saveFacts();
+}
+
+function getFact(key) {
+  const item = semanticMemory.find((entry) => entry.key === key);
+  return item ? item.value : null;
+}
+
+function extractSemanticMemory(text) {
+  const normalized = normalizeText(text);
+  let match = normalized.match(/^me llamo (.+)$/);
+  if (match) rememberFact("nombre", match[1]);
+
+  match = normalized.match(/^mi nombre es (.+)$/);
+  if (match) rememberFact("nombre", match[1]);
+
+  match = normalized.match(/^recuerda que (.+)$/);
+  if (match) rememberFact("nota", match[1]);
+
+  match = normalized.match(/^recuerda (.+)$/);
+  if (match) rememberFact("nota", match[1]);
 }
 
 function renderMemoryStatus() {
   if (!memoryStatus) return;
-  if (!conversationMemory.length) {
-    memoryStatus.textContent = "Sin conversaciones guardadas.";
+  const messages = conversationMemory.length;
+  const facts = semanticMemory.length;
+  if (!messages && !facts) {
+    memoryStatus.textContent = "Sin memoria guardada.";
     return;
   }
-  memoryStatus.textContent = `${conversationMemory.length} mensajes guardados localmente.`;
+  memoryStatus.textContent = `${messages} mensajes y ${facts} recuerdos guardados localmente.`;
 }
 
 function clearMemory() {
   conversationMemory = [];
+  semanticMemory = [];
   localStorage.removeItem(MEMORY_KEY);
+  localStorage.removeItem(FACTS_KEY);
   renderMemoryStatus();
   status.textContent = "Memoria local borrada.";
   speak("Memoria local borrada, señor.");
@@ -107,10 +160,18 @@ function getRecentContext() {
   return conversationMemory.slice(-6);
 }
 
-function browserMemorySummary() {
+function getMemorySummary() {
   const recent = getRecentContext();
-  if (!recent.length) return "No hay conversación previa.";
-  return recent.map((item) => `${item.role}: ${item.text}`).join(" | ");
+  const facts = semanticMemory;
+  const parts = [];
+
+  if (facts.length) {
+    parts.push(facts.map((item) => `${item.key}: ${item.value}`).join("; "));
+  }
+  if (recent.length) {
+    parts.push(`${recent.length} mensajes recientes`);
+  }
+  return parts.length ? parts.join(". ") : "No hay memoria previa.";
 }
 
 async function openLocalApp(app, label) {
@@ -122,6 +183,7 @@ async function openLocalApp(app, label) {
     });
     if (!response.ok) throw new Error("Bridge " + response.status);
 
+    conversationContext.lastApp = label;
     status.textContent = `${label} abierto.`;
     await speak(`Señor, ya está abierto ${label}.`);
   } catch (error) {
@@ -217,24 +279,15 @@ function detectIntent(text) {
   const saysJarvis = /\bjarvis\b/.test(normalized);
   const command = normalized.replace(/\bjarvis\b/g, "").trim();
 
-  if (!saysJarvis && !jarvisActive) {
-    return { type: "ignore", command, normalized };
-  }
+  if (!saysJarvis && !jarvisActive) return { type: "ignore", command, normalized };
 
-  if (/^(hola|buenos dias|buenas tardes|buenas noches|hey|hola jarvis)$/.test(command)) {
-    return { type: "greeting", command, normalized };
-  }
+  if (/^(hola|buenos dias|buenas tardes|buenas noches|hey)$/.test(command)) return { type: "greeting", command, normalized };
+  if (/\b(toma|tomar|saca|sacar)\s+(una\s+)?foto\b/.test(command)) return { type: "photo", command, normalized };
+  if (/\b(desactiva|desactivar|apaga|apagar|cierra|cerrar)\s+(la\s+)?camara\b/.test(command)) return { type: "camera_off", command, normalized };
+  if (/\b(activa|activar|enciende|encender|abre|abrir)\s+(la\s+)?camara\b/.test(command)) return { type: "camera_on", command, normalized };
 
-  if (/\b(toma|tomar|saca|sacar)\s+(una\s+)?foto\b/.test(command)) {
-    return { type: "photo", command, normalized };
-  }
-
-  if (/\b(desactiva|desactivar|apaga|apagar|cierra|cerrar)\s+(la\s+)?camara\b/.test(command)) {
-    return { type: "camera_off", command, normalized };
-  }
-
-  if (/\b(activa|activar|enciende|encender|abre|abrir)\s+(la\s+)?camara\b/.test(command)) {
-    return { type: "camera_on", command, normalized };
+  if (/\b(que|qué)\s+(recuerdas|recuerde)\b/.test(command) || /\bmemoria\b/.test(command)) {
+    return { type: "memory", command, normalized };
   }
 
   const wantsOpen = /\b(abre|abrir|inicia|iniciar|lanza|lanzar|ejecuta|ejecutar|muestra|mostrar)\b/.test(command);
@@ -243,38 +296,35 @@ function detectIntent(text) {
     if (app) return { type: "open_app", app: app.app, label: app.label, command, normalized };
   }
 
-  if (/\b(que|qué)\s+(recuerdas|recuerde|recuerdas de mi|recuerde de mi)\b/.test(command) || /\bmemoria\b/.test(command)) {
-    return { type: "memory", command, normalized };
+  if (/^(como me llamo|cual es mi nombre)$/.test(command)) return { type: "remembered_name", command, normalized };
+  if (/^(que recuerdas de mi|que sabes de mi)$/.test(command)) return { type: "remembered_facts", command, normalized };
+
+  if (/^recuerda que /.test(command) || /^recuerda /.test(command) || /^me llamo /.test(command) || /^mi nombre es /.test(command)) {
+    return { type: "remember", command, normalized };
   }
 
-  if (saysJarvis && !command) {
-    return { type: "wake", command, normalized };
-  }
-
+  if (saysJarvis && !command) return { type: "wake", command, normalized };
   return { type: "unknown", command, normalized };
 }
 
-async function executeIntent(intent, originalText) {
-  switch (intent.type) {
-    case "ignore":
-      return;
+async function executeIntent(intent) {
+  conversationContext.lastIntent = intent.type;
 
+  switch (intent.type) {
+    case "ignore": return;
     case "wake":
       jarvisActive = true;
       status.textContent = "Jarvis activo.";
       await speak("Sí, señor.");
       return;
-
     case "greeting":
       jarvisActive = true;
       status.textContent = "Jarvis activo.";
       await speak("Buenos días, señor. ¿En qué puedo ayudarle?");
       return;
-
     case "open_app":
       await openLocalApp(intent.app, intent.label);
       return;
-
     case "camera_on": {
       status.textContent = "Activando cámara...";
       const cameraReady = await startCamera();
@@ -282,28 +332,31 @@ async function executeIntent(intent, originalText) {
       else await speak("No pude activar la cámara, señor.");
       return;
     }
-
     case "camera_off":
       stopCamera();
       return;
-
     case "photo": {
       status.textContent = "Preparando cámara...";
       const cameraReady = await startCamera();
       if (cameraReady) takePhoto();
       return;
     }
-
-    case "memory": {
-      const recent = getRecentContext();
-      if (!recent.length) {
-        await speak("Todavía no tengo conversación guardada, señor.");
-      } else {
-        await speak(`Recuerdo ${recent.length} mensajes recientes. La memoria está guardada localmente en este navegador, señor.`);
-      }
+    case "memory":
+      await speak(getMemorySummary());
+      return;
+    case "remember":
+      await speak("Lo recordaré, señor.");
+      return;
+    case "remembered_name": {
+      const name = getFact("nombre");
+      await speak(name ? `Su nombre es ${name}, señor.` : "Todavía no me ha dicho su nombre, señor.");
       return;
     }
-
+    case "remembered_facts": {
+      const summary = getMemorySummary();
+      await speak(summary === "No hay memoria previa." ? "Todavía no tengo datos guardados sobre usted, señor." : `Esto es lo que recuerdo: ${summary}`);
+      return;
+    }
     case "unknown":
       status.textContent = "Orden no reconocida.";
       await speak("No reconocí esa orden, señor.");
@@ -316,14 +369,14 @@ async function processInput(text, source = "text") {
   if (!cleanText) return;
 
   transcript.textContent = `${source === "voice" ? "Tú" : "Tú (texto)"}: ${cleanText}`;
+  conversationContext.lastUserText = cleanText;
+  extractSemanticMemory(cleanText);
   addMemory("user", cleanText);
 
   const intent = detectIntent(cleanText);
-  await executeIntent(intent, cleanText);
+  await executeIntent(intent);
 
-  if (intent.type !== "ignore") {
-    addMemory("jarvis", `intención: ${intent.type}`);
-  }
+  if (intent.type !== "ignore") addMemory("jarvis", `intención: ${intent.type}`);
 }
 
 cameraButton.addEventListener("click", startCamera);
@@ -354,21 +407,13 @@ if (!SpeechRecognition) {
   });
 
   recognition.onresult = async (event) => {
-    const text = event.results[0][0].transcript.trim();
-    await processInput(text, "voice");
+    await processInput(event.results[0][0].transcript.trim(), "voice");
   };
-
-  recognition.onerror = (event) => {
-    status.textContent = `Error de micrófono: ${event.error}`;
-  };
-
-  recognition.onend = () => {
-    if (status.textContent === "Escuchando...") status.textContent = "Sistema listo.";
-  };
+  recognition.onerror = (event) => { status.textContent = `Error de micrófono: ${event.error}`; };
+  recognition.onend = () => { if (status.textContent === "Escuchando...") status.textContent = "Sistema listo."; };
 }
 
 renderMemoryStatus();
-
 window.addEventListener("beforeunload", () => {
   if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
 });
