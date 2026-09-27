@@ -12,47 +12,32 @@ let cameraStream = null;
 let currentAudio = null;
 
 function browserSpeak(text) {
-  if (!("speechSynthesis" in window)) {
-    throw new Error("El navegador no tiene síntesis de voz.");
-  }
-
+  if (!("speechSynthesis" in window)) throw new Error("El navegador no tiene síntesis de voz.");
   window.speechSynthesis.cancel();
-
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "es-CO";
   utterance.rate = 1;
   utterance.pitch = 1;
-
   window.speechSynthesis.speak(utterance);
 }
 
 async function speak(text) {
   try {
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-    }
-
+    if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
     const response = await fetch("/api/speak", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text })
     });
-
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Respuesta completa de ElevenLabs:", errorText);
       throw new Error(`TTS ${response.status}: ${errorText}`);
     }
-
     const audioBlob = await response.blob();
     const audioUrl = URL.createObjectURL(audioBlob);
     currentAudio = new Audio(audioUrl);
-
-    currentAudio.onended = () => {
-      URL.revokeObjectURL(audioUrl);
-    };
-
+    currentAudio.onended = () => URL.revokeObjectURL(audioUrl);
     await currentAudio.play();
   } catch (error) {
     console.error("ElevenLabs no pudo reproducir el audio:", error);
@@ -69,26 +54,19 @@ async function speak(text) {
 
 async function openLocalApp(app, label) {
   status.textContent = `Abriendo ${label}...`;
-
   try {
-    const response = await fetch(
-      `http://127.0.0.1:3000/open?app=${encodeURIComponent(app)}`,
-      {
-        method: "GET",
-        cache: "no-store"
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error("Bridge " + response.status);
-    }
+    const response = await fetch(`http://127.0.0.1:3000/open?app=${encodeURIComponent(app)}`, {
+      method: "GET",
+      cache: "no-store"
+    });
+    if (!response.ok) throw new Error("Bridge " + response.status);
 
     status.textContent = `${label} abierto.`;
-    speak(`Abriendo ${label}, señor.`);
+    await speak(`Señor, ya está abierto ${label}.`);
   } catch (error) {
     console.error(`Error abriendo ${label}:`, error);
     status.textContent = `No se pudo abrir ${label}.`;
-    speak(`No puedo abrir ${label}. Verifique que el puente de Jarvis esté activo, señor.`);
+    await speak(`No puedo abrir ${label}. Verifique que el puente de Jarvis esté activo, señor.`);
   }
 }
 
@@ -97,7 +75,6 @@ async function startCamera() {
     cameraStatus.textContent = "Este navegador no permite acceder a la cámara.";
     return false;
   }
-
   try {
     if (!cameraStream) {
       cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
@@ -137,18 +114,15 @@ function takePhoto() {
     speak("Necesito acceso a la cámara, señor.");
     return;
   }
-
   photoCanvas.width = camera.videoWidth;
   photoCanvas.height = camera.videoHeight;
   const context = photoCanvas.getContext("2d");
   context.drawImage(camera, 0, 0, photoCanvas.width, photoCanvas.height);
-
   const photoUrl = photoCanvas.toDataURL("image/png");
   const link = document.createElement("a");
   link.href = photoUrl;
   link.download = `jarvis-foto-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
   link.click();
-
   status.textContent = "Foto tomada.";
   cameraStatus.textContent = "Foto capturada y guardada.";
   speak("Foto tomada, señor.");
@@ -182,21 +156,7 @@ if (!SpeechRecognition) {
     const asksToDisableCamera = /\b(desactiva|desactivar|apaga|apagar|cierra|cerrar)\s+(la\s+)?camara\b/.test(normalized);
     const asksToEnableCamera = /\b(activa|activar|enciende|encender|abre|abrir)\s+(la\s+)?camara\b/.test(normalized);
 
-    const asksToOpenRoblox = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+roblox\b/.test(normalized);
-    const asksToOpenChrome = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(google\s+chrome|chrome)\b/.test(normalized);
-    const asksToOpenVSCode = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(visual\s+studio\s+code|vs\s*code|visual\s+code)\b/.test(normalized);
-    const asksToOpenNotepad = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(bloc\s+de\s+notas|notas|notepad)\b/.test(normalized);
-    const asksToOpenCalculator = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(calculadora|calculator)\b/.test(normalized);
-
-    const asksToOpenDownloads = /\b(abre|abrir|inicia|iniciar|muestra|mostrar)\s+(la\s+)?(carpeta\s+de\s+)?descargas\b/.test(normalized);
-    const asksToOpenDocuments = /\b(abre|abrir|inicia|iniciar|muestra|mostrar)\s+(la\s+)?(carpeta\s+de\s+)?documentos\b/.test(normalized);
-    const asksToOpenDesktop = /\b(abre|abrir|inicia|iniciar|muestra|mostrar)\s+(el\s+)?(escritorio|desktop)\b/.test(normalized);
-    const asksToOpenExplorer = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(el\s+)?(explorador|explorador\s+de\s+archivos|archivos)\b/.test(normalized);
-    const asksToOpenSettings = /\b(abre|abrir|inicia|iniciar|muestra|mostrar)\s+(la\s+)?(configuracion|ajustes)\b/.test(normalized);
-
-    // Cerebro local de Jarvis: interpreta intenciones y alias comunes.
     const command = normalized.replace(/\bjarvis\b/g, "").trim();
-
     const appAliases = [
       { pattern: /\b(roblox)\b/, app: "roblox", label: "Roblox" },
       { pattern: /\b(google\s+chrome|chrome)\b/, app: "chrome", label: "Chrome" },
@@ -220,17 +180,17 @@ if (!SpeechRecognition) {
     } else if (asksToEnableCamera) {
       status.textContent = "Activando cámara...";
       const cameraReady = await startCamera();
-      if (cameraReady) speak("Cámara activada, señor.");
+      if (cameraReady) await speak("Cámara activada, señor.");
     } else if (asksForPhoto) {
       status.textContent = "Preparando cámara...";
       const cameraReady = await startCamera();
       if (cameraReady) takePhoto();
     } else if (saysJarvis) {
       status.textContent = "Jarvis activo.";
-      speak("Sí, señor.");
+      await speak("Sí, señor.");
     } else {
       status.textContent = "No reconocí esa orden.";
-      speak("No reconocí esa orden, señor.");
+      await speak("No reconocí esa orden, señor.");
     }
   };
 
