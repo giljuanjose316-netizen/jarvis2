@@ -339,6 +339,8 @@ function takePhoto() {
 
 const appAliases = [
   { pattern: /\b(roblox)\b/, app: "roblox", label: "Roblox" },
+  { pattern: /\b(microsoft\s+edge|edge)\b/, app: "edge", label: "Microsoft Edge" },
+  { pattern: /\b(mi\s+navegador|el\s+navegador|navegador)\b/, app: "edge", label: "Microsoft Edge" },
   { pattern: /\b(google\s+chrome|chrome)\b/, app: "chrome", label: "Chrome" },
   { pattern: /\b(visual\s+studio\s+code|vs\s*code|visual\s+code|vscode)\b/, app: "vscode", label: "Visual Studio Code" },
   { pattern: /\b(bloc\s+de\s+notas|notepad)\b/, app: "notepad", label: "Bloc de notas" },
