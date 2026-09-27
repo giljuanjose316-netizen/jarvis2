@@ -21,11 +21,7 @@ let currentAudio = null;
 let jarvisActive = false;
 let conversationMemory = loadMemory();
 let semanticMemory = loadFacts();
-let conversationContext = {
-  lastIntent: null,
-  lastApp: null,
-  lastUserText: null
-};
+let conversationContext = { lastIntent: null, lastApp: null, lastUserText: null };
 
 function browserSpeak(text) {
   if (!("speechSynthesis" in window)) throw new Error("El navegador no tiene síntesis de voz.");
@@ -45,26 +41,16 @@ async function speak(text) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text })
     });
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Respuesta completa de ElevenLabs:", errorText);
-      throw new Error(`TTS ${response.status}: ${errorText}`);
-    }
-    const audioBlob = await response.blob();
-    const audioUrl = URL.createObjectURL(audioBlob);
+    if (!response.ok) throw new Error(`TTS ${response.status}: ${await response.text()}`);
+    const audioUrl = URL.createObjectURL(await response.blob());
     currentAudio = new Audio(audioUrl);
     currentAudio.onended = () => URL.revokeObjectURL(audioUrl);
     await currentAudio.play();
   } catch (error) {
     console.error("ElevenLabs no pudo reproducir el audio:", error);
     status.textContent = "Usando voz del navegador...";
-    try {
-      browserSpeak(text);
-      status.textContent = "Jarvis activo.";
-    } catch (fallbackError) {
-      console.error("Error con voz del navegador:", fallbackError);
-      status.textContent = "No se pudo reproducir la voz de Jarvis.";
-    }
+    try { browserSpeak(text); status.textContent = "Jarvis activo."; }
+    catch (fallbackError) { console.error(fallbackError); status.textContent = "No se pudo reproducir la voz de Jarvis."; }
   }
 }
 
@@ -73,10 +59,7 @@ function loadMemory() {
     const saved = localStorage.getItem(MEMORY_KEY);
     const parsed = saved ? JSON.parse(saved) : [];
     return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    console.error("No se pudo cargar la memoria de Jarvis:", error);
-    return [];
-  }
+  } catch (error) { console.error(error); return []; }
 }
 
 function loadFacts() {
@@ -84,10 +67,7 @@ function loadFacts() {
     const saved = localStorage.getItem(FACTS_KEY);
     const parsed = saved ? JSON.parse(saved) : [];
     return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    console.error("No se pudo cargar la memoria semántica:", error);
-    return [];
-  }
+  } catch (error) { console.error(error); return []; }
 }
 
 function saveMemory() {
@@ -124,13 +104,10 @@ function extractSemanticMemory(text) {
   const normalized = normalizeText(text);
   let match = normalized.match(/^me llamo (.+)$/);
   if (match) rememberFact("nombre", match[1]);
-
   match = normalized.match(/^mi nombre es (.+)$/);
   if (match) rememberFact("nombre", match[1]);
-
   match = normalized.match(/^recuerda que (.+)$/);
   if (match) rememberFact("nota", match[1]);
-
   match = normalized.match(/^recuerda (.+)$/);
   if (match) rememberFact("nota", match[1]);
 }
@@ -139,11 +116,9 @@ function renderMemoryStatus() {
   if (!memoryStatus) return;
   const messages = conversationMemory.length;
   const facts = semanticMemory.length;
-  if (!messages && !facts) {
-    memoryStatus.textContent = "Sin memoria guardada.";
-    return;
-  }
-  memoryStatus.textContent = `${messages} mensajes y ${facts} recuerdos guardados localmente.`;
+  memoryStatus.textContent = !messages && !facts
+    ? "Sin memoria guardada."
+    : `${messages} mensajes y ${facts} recuerdos guardados localmente.`;
 }
 
 function clearMemory() {
@@ -156,40 +131,28 @@ function clearMemory() {
   speak("Memoria local borrada, señor.");
 }
 
-function getRecentContext() {
-  return conversationMemory.slice(-6);
-}
+function getRecentContext() { return conversationMemory.slice(-6); }
 
 function getMemorySummary() {
   const recent = getRecentContext();
-  const facts = semanticMemory;
   const parts = [];
-
-  if (facts.length) {
-    parts.push(facts.map((item) => `${item.key}: ${item.value}`).join("; "));
-  }
-  if (recent.length) {
-    parts.push(`${recent.length} mensajes recientes`);
-  }
+  if (semanticMemory.length) parts.push(semanticMemory.map((item) => `${item.key}: ${item.value}`).join("; "));
+  if (recent.length) parts.push(`${recent.length} mensajes recientes`);
   return parts.length ? parts.join(". ") : "No hay memoria previa.";
 }
 
 async function openLocalApp(app, label) {
   status.textContent = `Abriendo ${label}...`;
   try {
-    const response = await fetch(`http://127.0.0.1:3000/open?app=${encodeURIComponent(app)}`, {
-      method: "GET",
-      cache: "no-store"
-    });
+    const response = await fetch(`http://127.0.0.1:3000/open?app=${encodeURIComponent(app)}`, { method: "GET", cache: "no-store" });
     if (!response.ok) throw new Error("Bridge " + response.status);
-
     conversationContext.lastApp = label;
     status.textContent = `${label} abierto.`;
-    await speak(`Señor, ya está abierto ${label}.`);
+    return true;
   } catch (error) {
     console.error(`Error abriendo ${label}:`, error);
     status.textContent = `No se pudo abrir ${label}.`;
-    await speak(`No puedo abrir ${label}. Verifique que el puente de Jarvis esté activo, señor.`);
+    return false;
   }
 }
 
@@ -228,27 +191,20 @@ function stopCamera() {
   cameraButton.disabled = false;
   cameraOffButton.disabled = true;
   status.textContent = "Cámara desactivada.";
-  speak("Cámara desactivada, señor.");
 }
 
 function takePhoto() {
-  if (!cameraStream || !camera.videoWidth || !camera.videoHeight) {
-    status.textContent = "Activa la cámara primero.";
-    speak("Necesito acceso a la cámara, señor.");
-    return;
-  }
+  if (!cameraStream || !camera.videoWidth || !camera.videoHeight) return false;
   photoCanvas.width = camera.videoWidth;
   photoCanvas.height = camera.videoHeight;
-  const context = photoCanvas.getContext("2d");
-  context.drawImage(camera, 0, 0, photoCanvas.width, photoCanvas.height);
-  const photoUrl = photoCanvas.toDataURL("image/png");
+  photoCanvas.getContext("2d").drawImage(camera, 0, 0, photoCanvas.width, photoCanvas.height);
   const link = document.createElement("a");
-  link.href = photoUrl;
+  link.href = photoCanvas.toDataURL("image/png");
   link.download = `jarvis-foto-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
   link.click();
   status.textContent = "Foto tomada.";
   cameraStatus.textContent = "Foto capturada y guardada.";
-  speak("Foto tomada, señor.");
+  return true;
 }
 
 const appAliases = [
@@ -265,30 +221,21 @@ const appAliases = [
 ];
 
 function normalizeText(text) {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[¿?¡!.,;:]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[¿?¡!.,;:]/g, " ").replace(/\s+/g, " ").trim();
 }
 
+// 1. COMPRENSIÓN: convierte lenguaje en una intención estructurada.
 function detectIntent(text) {
   const normalized = normalizeText(text);
   const saysJarvis = /\bjarvis\b/.test(normalized);
   const command = normalized.replace(/\bjarvis\b/g, "").trim();
 
   if (!saysJarvis && !jarvisActive) return { type: "ignore", command, normalized };
-
   if (/^(hola|buenos dias|buenas tardes|buenas noches|hey)$/.test(command)) return { type: "greeting", command, normalized };
   if (/\b(toma|tomar|saca|sacar)\s+(una\s+)?foto\b/.test(command)) return { type: "photo", command, normalized };
   if (/\b(desactiva|desactivar|apaga|apagar|cierra|cerrar)\s+(la\s+)?camara\b/.test(command)) return { type: "camera_off", command, normalized };
   if (/\b(activa|activar|enciende|encender|abre|abrir)\s+(la\s+)?camara\b/.test(command)) return { type: "camera_on", command, normalized };
-
-  if (/\b(que|qué)\s+(recuerdas|recuerde)\b/.test(command) || /\bmemoria\b/.test(command)) {
-    return { type: "memory", command, normalized };
-  }
+  if (/\b(que|qué)\s+(recuerdas|recuerde)\b/.test(command) || /\bmemoria\b/.test(command)) return { type: "memory", command, normalized };
 
   const wantsOpen = /\b(abre|abrir|inicia|iniciar|lanza|lanzar|ejecuta|ejecutar|muestra|mostrar)\b/.test(command);
   if (wantsOpen) {
@@ -298,72 +245,72 @@ function detectIntent(text) {
 
   if (/^(como me llamo|cual es mi nombre)$/.test(command)) return { type: "remembered_name", command, normalized };
   if (/^(que recuerdas de mi|que sabes de mi)$/.test(command)) return { type: "remembered_facts", command, normalized };
-
-  if (/^recuerda que /.test(command) || /^recuerda /.test(command) || /^me llamo /.test(command) || /^mi nombre es /.test(command)) {
-    return { type: "remember", command, normalized };
-  }
-
+  if (/^recuerda que /.test(command) || /^recuerda /.test(command) || /^me llamo /.test(command) || /^mi nombre es /.test(command)) return { type: "remember", command, normalized };
   if (saysJarvis && !command) return { type: "wake", command, normalized };
   return { type: "unknown", command, normalized };
 }
 
-async function executeIntent(intent) {
-  conversationContext.lastIntent = intent.type;
-
+// 2. PLANIFICACIÓN: decide qué acciones y respuesta corresponden a la intención.
+function createPlan(intent) {
   switch (intent.type) {
-    case "ignore": return;
-    case "wake":
-      jarvisActive = true;
-      status.textContent = "Jarvis activo.";
-      await speak("Sí, señor.");
-      return;
-    case "greeting":
-      jarvisActive = true;
-      status.textContent = "Jarvis activo.";
-      await speak("Buenos días, señor. ¿En qué puedo ayudarle?");
-      return;
-    case "open_app":
-      await openLocalApp(intent.app, intent.label);
-      return;
-    case "camera_on": {
-      status.textContent = "Activando cámara...";
-      const cameraReady = await startCamera();
-      if (cameraReady) await speak("Cámara activada, señor.");
-      else await speak("No pude activar la cámara, señor.");
-      return;
-    }
-    case "camera_off":
-      stopCamera();
-      return;
-    case "photo": {
-      status.textContent = "Preparando cámara...";
-      const cameraReady = await startCamera();
-      if (cameraReady) takePhoto();
-      return;
-    }
-    case "memory":
-      await speak(getMemorySummary());
-      return;
-    case "remember":
-      await speak("Lo recordaré, señor.");
-      return;
+    case "ignore": return { type: "ignore", actions: [] };
+    case "wake": return { type: "wake", actions: [], response: "Sí, señor." };
+    case "greeting": return { type: "greeting", actions: [], response: "Buenos días, señor. ¿En qué puedo ayudarle?" };
+    case "open_app": return { type: "open_app", actions: [{ type: "open_app", app: intent.app, label: intent.label }] };
+    case "camera_on": return { type: "camera_on", actions: [{ type: "camera_on" }] };
+    case "camera_off": return { type: "camera_off", actions: [{ type: "camera_off" }], response: "Cámara desactivada, señor." };
+    case "photo": return { type: "photo", actions: [{ type: "camera_on" }, { type: "photo" }] };
+    case "memory": return { type: "memory", actions: [], response: getMemorySummary() };
+    case "remember": return { type: "remember", actions: [], response: "Lo recordaré, señor." };
     case "remembered_name": {
       const name = getFact("nombre");
-      await speak(name ? `Su nombre es ${name}, señor.` : "Todavía no me ha dicho su nombre, señor.");
-      return;
+      return { type: "remembered_name", actions: [], response: name ? `Su nombre es ${name}, señor.` : "Todavía no me ha dicho su nombre, señor." };
     }
     case "remembered_facts": {
       const summary = getMemorySummary();
-      await speak(summary === "No hay memoria previa." ? "Todavía no tengo datos guardados sobre usted, señor." : `Esto es lo que recuerdo: ${summary}`);
-      return;
+      return { type: "remembered_facts", actions: [], response: summary === "No hay memoria previa." ? "Todavía no tengo datos guardados sobre usted, señor." : `Esto es lo que recuerdo: ${summary}` };
     }
-    case "unknown":
-      status.textContent = "Orden no reconocida.";
-      await speak("No reconocí esa orden, señor.");
-      return;
+    default: return { type: "unknown", actions: [], response: "No reconocí esa orden, señor." };
   }
 }
 
+// 3. ACCIÓN: ejecuta el plan sin mezclarlo con la comprensión.
+async function executePlan(plan) {
+  if (plan.type === "ignore") return;
+
+  if (plan.type === "wake" || plan.type === "greeting") jarvisActive = true;
+
+  for (const action of plan.actions) {
+    if (action.type === "open_app") {
+      const opened = await openLocalApp(action.app, action.label);
+      plan.response = opened ? `Señor, ya está abierto ${action.label}.` : `No puedo abrir ${action.label}. Verifique que el puente de Jarvis esté activo, señor.`;
+    }
+
+    if (action.type === "camera_on") {
+      status.textContent = "Activando cámara...";
+      const ready = await startCamera();
+      if (!ready) plan.response = "No pude activar la cámara, señor.";
+      else if (plan.type === "camera_on") plan.response = "Cámara activada, señor.";
+    }
+
+    if (action.type === "camera_off") stopCamera();
+
+    if (action.type === "photo") {
+      const photoReady = takePhoto();
+      plan.response = photoReady ? "Foto tomada, señor." : "Necesito acceso a la cámara, señor.";
+    }
+  }
+
+  status.textContent = plan.type === "unknown" ? "Orden no reconocida." : "Jarvis activo.";
+}
+
+// 4. RESPUESTA: habla y registra el resultado del plan.
+async function respond(plan) {
+  if (!plan.response) return;
+  await speak(plan.response);
+}
+
+// 5. FLUJO CENTRAL: entrada -> comprensión -> memoria -> planificación -> acción -> respuesta.
 async function processInput(text, source = "text") {
   const cleanText = text.trim();
   if (!cleanText) return;
@@ -374,7 +321,11 @@ async function processInput(text, source = "text") {
   addMemory("user", cleanText);
 
   const intent = detectIntent(cleanText);
-  await executeIntent(intent);
+  const plan = createPlan(intent);
+  conversationContext.lastIntent = intent.type;
+
+  await executePlan(plan);
+  await respond(plan);
 
   if (intent.type !== "ignore") addMemory("jarvis", `intención: ${intent.type}`);
 }
