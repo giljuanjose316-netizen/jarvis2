@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Jarvis - asistente personal por voz con cámara">
+  <meta name="description" content="Jarvis - asistente personal por voz y texto con memoria local">
   <title>Jarvis</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -33,9 +33,25 @@
             <button id="cameraButton" type="button">Activar cámara</button>
             <button id="cameraOffButton" type="button" disabled>Desactivar cámara</button>
           </div>
-          <p class="hint">Di: «Jarvis, toma una foto» o «Jarvis, desactiva la cámara».</p>
+          <p class="hint">Di: «Jarvis, toma una foto» o «Jarvis, abre Chrome».</p>
         </div>
       </div>
+
+      <form id="textCommandForm" class="text-command" autocomplete="off">
+        <label for="textCommand">Comando de texto</label>
+        <div class="text-command-row">
+          <input id="textCommand" name="textCommand" type="text" placeholder="Escribe una orden para Jarvis..." aria-label="Escribe una orden para Jarvis">
+          <button id="sendTextButton" type="submit">Enviar</button>
+        </div>
+      </form>
+
+      <section class="memory-panel" aria-label="Memoria de conversación">
+        <div class="memory-header">
+          <span>Memoria local</span>
+          <button id="clearMemoryButton" type="button">Borrar</button>
+        </div>
+        <p id="memoryStatus">Sin conversaciones guardadas.</p>
+      </section>
 
       <p id="transcript" class="transcript" aria-live="polite"></p>
     </section>
