@@ -40,7 +40,9 @@ async function speak(text) {
     });
 
     if (!response.ok) {
-      throw new Error(`TTS ${response.status}`);
+      const errorText = await response.text();
+      console.error("Respuesta completa de ElevenLabs:", errorText);
+      throw new Error(`TTS ${response.status}: ${errorText}`);
     }
 
     const audioBlob = await response.blob();
