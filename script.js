@@ -194,7 +194,44 @@ if (!SpeechRecognition) {
     const asksToOpenExplorer = /\b(abre|abrir|inicia|iniciar|lanza|lanzar)\s+(el\s+)?(explorador|explorador\s+de\s+archivos|archivos)\b/.test(normalized);
     const asksToOpenSettings = /\b(abre|abrir|inicia|iniciar|muestra|mostrar)\s+(la\s+)?(configuracion|ajustes)\b/.test(normalized);
 
-    // Cerebro local de Jarvis: interpreta intenciones y alias comunes.\n    const command = normalized.replace(/\\bjarvis\\b/g, "").trim();\n\n    const appAliases = [\n      { pattern: /\\b(roblox)\\b/, app: "roblox", label: "Roblox" },\n      { pattern: /\\b(google\\s+chrome|chrome)\\b/, app: "chrome", label: "Chrome" },\n      { pattern: /\\b(visual\\s+studio\\s+code|vs\\s*code|visual\\s+code|vscode)\\b/, app: "vscode", label: "Visual Studio Code" },\n      { pattern: /\\b(bloc\\s+de\\s+notas|notepad)\\b/, app: "notepad", label: "Bloc de notas" },\n      { pattern: /\\b(calculadora|calculator)\\b/, app: "calculator", label: "Calculadora" },\n      { pattern: /\\b(descargas|carpeta\\s+de\\s+descargas)\\b/, app: "downloads", label: "Descargas" },\n      { pattern: /\\b(documentos|carpeta\\s+de\\s+documentos)\\b/, app: "documents", label: "Documentos" },\n      { pattern: /\\b(escritorio|desktop)\\b/, app: "desktop", label: "Escritorio" },\n      { pattern: /\\b(explorador(?:\\s+de\\s+archivos)?|archivos)\\b/, app: "explorer", label: "Explorador de archivos" },\n      { pattern: /\\b(configuracion|ajustes)\\b/, app: "settings", label: "Configuración" }\n    ];\n\n    const wantsOpen = /\\b(abre|abrir|inicia|iniciar|lanza|lanzar|ejecuta|ejecutar|muestra|mostrar)\\b/.test(command);\n    const app = wantsOpen ? appAliases.find((item) => item.pattern.test(command)) : null;\n\n    if (app) {\n      await openLocalApp(app.app, app.label);\n    } else if (asksToDisableCamera) {\n      stopCamera();\n    } else if (asksToEnableCamera) {\n      status.textContent = "Activando cámara...";\n      const cameraReady = await startCamera();\n      if (cameraReady) speak("Cámara activada, señor.");\n    } else if (asksForPhoto) {\n      status.textContent = "Preparando cámara...";\n      const cameraReady = await startCamera();\n      if (cameraReady) takePhoto();\n    } else if (saysJarvis) {\n      status.textContent = "Jarvis activo.";\n      speak("Sí, señor.");\n    } else {\n      status.textContent = "No reconocí esa orden.";\n      speak("No reconocí esa orden, señor.");\n    }
+    // Cerebro local de Jarvis: interpreta intenciones y alias comunes.
+    const command = normalized.replace(/\bjarvis\b/g, "").trim();
+
+    const appAliases = [
+      { pattern: /\b(roblox)\b/, app: "roblox", label: "Roblox" },
+      { pattern: /\b(google\s+chrome|chrome)\b/, app: "chrome", label: "Chrome" },
+      { pattern: /\b(visual\s+studio\s+code|vs\s*code|visual\s+code|vscode)\b/, app: "vscode", label: "Visual Studio Code" },
+      { pattern: /\b(bloc\s+de\s+notas|notepad)\b/, app: "notepad", label: "Bloc de notas" },
+      { pattern: /\b(calculadora|calculator)\b/, app: "calculator", label: "Calculadora" },
+      { pattern: /\b(descargas|carpeta\s+de\s+descargas)\b/, app: "downloads", label: "Descargas" },
+      { pattern: /\b(documentos|carpeta\s+de\s+documentos)\b/, app: "documents", label: "Documentos" },
+      { pattern: /\b(escritorio|desktop)\b/, app: "desktop", label: "Escritorio" },
+      { pattern: /\b(explorador(?:\s+de\s+archivos)?|archivos)\b/, app: "explorer", label: "Explorador de archivos" },
+      { pattern: /\b(configuracion|ajustes)\b/, app: "settings", label: "Configuración" }
+    ];
+
+    const wantsOpen = /\b(abre|abrir|inicia|iniciar|lanza|lanzar|ejecuta|ejecutar|muestra|mostrar)\b/.test(command);
+    const app = wantsOpen ? appAliases.find((item) => item.pattern.test(command)) : null;
+
+    if (app) {
+      await openLocalApp(app.app, app.label);
+    } else if (asksToDisableCamera) {
+      stopCamera();
+    } else if (asksToEnableCamera) {
+      status.textContent = "Activando cámara...";
+      const cameraReady = await startCamera();
+      if (cameraReady) speak("Cámara activada, señor.");
+    } else if (asksForPhoto) {
+      status.textContent = "Preparando cámara...";
+      const cameraReady = await startCamera();
+      if (cameraReady) takePhoto();
+    } else if (saysJarvis) {
+      status.textContent = "Jarvis activo.";
+      speak("Sí, señor.");
+    } else {
+      status.textContent = "No reconocí esa orden.";
+      speak("No reconocí esa orden, señor.");
+    }
   };
 
   recognition.onerror = (event) => {
