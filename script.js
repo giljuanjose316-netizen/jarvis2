@@ -31,6 +31,13 @@ let conversationContext = {
 
 let pendingSystemAction = null;
 
+function consciousnessSet(patch = {}, eventType = null, eventDetail = "") {
+  if (!window.JarvisConsciousness) return;
+  window.JarvisConsciousness.set(patch);
+  if (eventType) window.JarvisConsciousness.rememberEvent(eventType, eventDetail);
+}
+
+
 function browserSpeak(text) {
   if (!("speechSynthesis" in window)) throw new Error("El navegador no tiene síntesis de voz.");
   window.speechSynthesis.cancel();
@@ -223,6 +230,7 @@ function removeWakeWord(text) {
 
 async function openLocalApp(app, label) {
   status.textContent = `Abriendo ${label}...`;
+  consciousnessSet({ state: "executing", currentTask: `abrir ${label}`, lastAction: `abrir ${label}` });
 
   try {
     const response = await fetch(
@@ -239,16 +247,19 @@ async function openLocalApp(app, label) {
     };
 
     status.textContent = `${label} abierto.`;
+    consciousnessSet({ state: "idle", currentTask: null, lastResult: "éxito", bridgeOnline: true }, "action", `Abierto ${label}`);
     return true;
   } catch (error) {
     console.error(`Error abriendo ${label}:`, error);
     status.textContent = `No se pudo abrir ${label}.`;
+    consciousnessSet({ state: "idle", currentTask: null, lastResult: "error", bridgeOnline: false }, "error", `No se pudo abrir ${label}`);
     return false;
   }
 }
 
 async function closeLocalApp(app, label) {
   status.textContent = `Cerrando ${label}...`;
+  consciousnessSet({ state: "executing", currentTask: `cerrar ${label}`, lastAction: `cerrar ${label}` });
 
   try {
     const response = await fetch(
@@ -267,10 +278,12 @@ async function closeLocalApp(app, label) {
     }
 
     status.textContent = `${label} cerrado.`;
+    consciousnessSet({ state: "idle", currentTask: null, lastResult: "éxito", bridgeOnline: true }, "action", `Cerrado ${label}`);
     return true;
   } catch (error) {
     console.error(`Error cerrando ${label}:`, error);
     status.textContent = `No se pudo cerrar ${label}.`;
+    consciousnessSet({ state: "idle", currentTask: null, lastResult: "error", bridgeOnline: false }, "error", `No se pudo cerrar ${label}`);
     return false;
   }
 }
@@ -401,6 +414,10 @@ function detectIntent(text) {
 
   if (/^(hola|buenos dias|buenas tardes|buenas noches|hey)$/.test(command)) {
     return { type: "greeting", command, normalized };
+  }
+
+  if (/\b(que estas haciendo|qué estás haciendo|cual es tu estado|cuál es tu estado|estado de jarvis|conciencia)\b/.test(command)) {
+    return { type: "consciousness_status", command, normalized };
   }
 
   if (/\b(toma|tomar|saca|sacar)\s+(una\s+)?foto\b/.test(command)) {
@@ -587,6 +604,15 @@ function createPlan(intent) {
         response: "Cámara desactivada, señor."
       };
 
+    case "consciousness_status":
+      return {
+        type: "consciousness_status",
+        actions: [],
+        response: window.JarvisConsciousness
+          ? `Mi estado operativo es el siguiente: ${window.JarvisConsciousness.summary()}`
+          : "Mi módulo de estado operativo todavía no está disponible, señor."
+      };
+
     case "photo":
       return {
         type: "photo",
@@ -713,6 +739,7 @@ async function respond(plan) {
 }
 
 async function processInput(text, source = "text") {
+  consciousnessSet({ state: "processing", currentTask: "procesar una orden", lastCommand: text.trim(), pendingConfirmation: pendingSystemAction }, "input", text.trim());
   const cleanText = text.trim();
   if (!cleanText) return;
 
@@ -728,9 +755,17 @@ async function processInput(text, source = "text") {
 
   conversationContext.lastIntent = intent.type;
   conversationContext.lastPlan = plan;
+  consciousnessSet({ lastIntent: intent.type, currentTask: plan.type });
 
   await executePlan(plan);
   await respond(plan);
+
+  consciousnessSet({
+    state: "idle",
+    currentTask: null,
+    lastResult: plan.response || "completado",
+    pendingConfirmation: pendingSystemAction
+  });
 
   if (intent.type !== "ignore") {
     addMemory("jarvis", `intención: ${intent.type}`);
