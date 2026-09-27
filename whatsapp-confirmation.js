@@ -1,11 +1,16 @@
 (() => {
-  const NativeSpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!NativeSpeechRecognition) return;
+  const constructors = [window.SpeechRecognition, window.webkitSpeechRecognition].filter(Boolean);
+  if (!constructors.length) return;
 
   let pendingWhatsAppMessage = null;
 
   function normalize(text) {
-    return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+    return text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   function extractMessage(text) {
@@ -15,10 +20,17 @@
       /^(?:jarvis[ ,]*)?(?:envia|manda|escribe)\s+(?:un\s+)?mensaje\s+a\s+(.+?)\s+(?:diciendo|que diga)\s+(.+)$/i,
       /^(?:jarvis[ ,]*)?(?:dile|escribele|escríbele)\s+a\s+(.+?)\s+(?:que|diciendo)\s+(.+)$/i
     ];
+
     for (const pattern of patterns) {
       const match = clean.match(pattern);
-      if (match) return { contact: match[1].trim(), message: match[2].trim() };
+      if (match) {
+        return {
+          contact: match[1].trim(),
+          message: match[2].trim()
+        };
+      }
     }
+
     return null;
   }
 
@@ -31,10 +43,14 @@
   }
 
   async function speak(text) {
-    if (typeof window.speak === "function") return window.speak(text);
+    if (typeof window.speak === "function") {
+      return window.speak(text);
+    }
+
     if ("speechSynthesis" in window) {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "es-CO";
+      window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
     }
   }
@@ -53,8 +69,11 @@
     if (pendingWhatsAppMessage && isConfirmation(clean)) {
       const confirmed = pendingWhatsAppMessage;
       pendingWhatsAppMessage = null;
-      window.dispatchEvent(new CustomEvent("jarvis:whatsapp-confirmed", { detail: confirmed }));
+      window.dispatchEvent(
+        new CustomEvent("jarvis:whatsapp-confirmed", { detail: confirmed })
+      );
       speak(`Confirmado. El mensaje para ${confirmed.contact} quedó autorizado para envío.`);
+
       const status = document.getElementById("status");
       if (status) status.textContent = "Mensaje de WhatsApp confirmado.";
       return true;
@@ -62,9 +81,11 @@
 
     if (/\b(whatsapp|mensaje|envia|envía|manda|escribe|dile)\b/.test(normalized)) {
       const message = extractMessage(clean);
+
       if (message) {
         pendingWhatsAppMessage = message;
         speak(`Voy a enviar a ${message.contact}: “${message.message}”. ¿Confirma?`);
+
         const status = document.getElementById("status");
         if (status) status.textContent = "Esperando confirmación de WhatsApp...";
         return true;
@@ -74,33 +95,40 @@
     return false;
   }
 
-  // Se ejecuta antes de script.js y envuelve la instancia real de SpeechRecognition.
-  // Así interceptamos comandos de WhatsApp antes de que lleguen al procesador general.
-  function JarvisSpeechRecognition(...args) {
-    const recognition = new NativeSpeechRecognition(...args);
-    let originalOnResult = null;
+  function patchConstructor(RecognitionConstructor) {
+    const prototype = RecognitionConstructor.prototype;
+    if (!prototype || prototype.__jarvisWhatsAppPatched) return;
 
-    Object.defineProperty(recognition, "onresult", {
-      configurable: true,
-      get() { return originalOnResult; },
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, "onresult");
+    if (!descriptor || typeof descriptor.set !== "function") return;
+
+    Object.defineProperty(prototype, "onresult", {
+      configurable: descriptor.configurable,
+      enumerable: descriptor.enumerable,
+      get: descriptor.get,
       set(handler) {
-        originalOnResult = async (event) => {
+        const wrappedHandler = async (event) => {
           const text = event?.results?.[0]?.[0]?.transcript?.trim() || "";
           if (handle(text)) return;
-          if (typeof handler === "function") return handler(event);
+          if (typeof handler === "function") return handler.call(this, event);
         };
+
+        descriptor.set.call(this, wrappedHandler);
       }
     });
 
-    return recognition;
+    Object.defineProperty(prototype, "__jarvisWhatsAppPatched", {
+      value: true,
+      configurable: true
+    });
   }
 
-  JarvisSpeechRecognition.prototype = NativeSpeechRecognition.prototype;
-  window.SpeechRecognition = JarvisSpeechRecognition;
-  window.webkitSpeechRecognition = JarvisSpeechRecognition;
+  constructors.forEach(patchConstructor);
 
   window.jarvisWhatsApp = {
     hasPendingMessage: () => Boolean(pendingWhatsAppMessage),
-    cancel: () => { pendingWhatsAppMessage = null; }
+    cancel: () => {
+      pendingWhatsAppMessage = null;
+    }
   };
 })();
