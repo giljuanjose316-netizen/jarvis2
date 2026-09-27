@@ -6,11 +6,18 @@ const photoCanvas = document.getElementById("photoCanvas");
 const cameraButton = document.getElementById("cameraButton");
 const cameraOffButton = document.getElementById("cameraOffButton");
 const cameraStatus = document.getElementById("cameraStatus");
+const textCommandForm = document.getElementById("textCommandForm");
+const textCommand = document.getElementById("textCommand");
+const memoryStatus = document.getElementById("memoryStatus");
+const clearMemoryButton = document.getElementById("clearMemoryButton");
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const MEMORY_KEY = "jarvis_conversation_memory_v1";
+const MAX_MEMORY_ITEMS = 20;
 let cameraStream = null;
 let currentAudio = null;
 let jarvisActive = false;
+let conversationMemory = loadMemory();
 
 function browserSpeak(text) {
   if (!("speechSynthesis" in window)) throw new Error("El navegador no tiene síntesis de voz.");
@@ -51,6 +58,59 @@ async function speak(text) {
       status.textContent = "No se pudo reproducir la voz de Jarvis.";
     }
   }
+}
+
+function loadMemory() {
+  try {
+    const saved = localStorage.getItem(MEMORY_KEY);
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("No se pudo cargar la memoria de Jarvis:", error);
+    return [];
+  }
+}
+
+function saveMemory() {
+  conversationMemory = conversationMemory.slice(-MAX_MEMORY_ITEMS);
+  localStorage.setItem(MEMORY_KEY, JSON.stringify(conversationMemory));
+  renderMemoryStatus();
+}
+
+function addMemory(role, text) {
+  conversationMemory.push({
+    role,
+    text,
+    time: new Date().toISOString()
+  });
+  saveMemory();
+}
+
+function renderMemoryStatus() {
+  if (!memoryStatus) return;
+  if (!conversationMemory.length) {
+    memoryStatus.textContent = "Sin conversaciones guardadas.";
+    return;
+  }
+  memoryStatus.textContent = `${conversationMemory.length} mensajes guardados localmente.`;
+}
+
+function clearMemory() {
+  conversationMemory = [];
+  localStorage.removeItem(MEMORY_KEY);
+  renderMemoryStatus();
+  status.textContent = "Memoria local borrada.";
+  speak("Memoria local borrada, señor.");
+}
+
+function getRecentContext() {
+  return conversationMemory.slice(-6);
+}
+
+function browserMemorySummary() {
+  const recent = getRecentContext();
+  if (!recent.length) return "No hay conversación previa.";
+  return recent.map((item) => `${item.role}: ${item.text}`).join(" | ");
 }
 
 async function openLocalApp(app, label) {
@@ -183,6 +243,10 @@ function detectIntent(text) {
     if (app) return { type: "open_app", app: app.app, label: app.label, command, normalized };
   }
 
+  if (/\b(que|qué)\s+(recuerdas|recuerde|recuerdas de mi|recuerde de mi)\b/.test(command) || /\bmemoria\b/.test(command)) {
+    return { type: "memory", command, normalized };
+  }
+
   if (saysJarvis && !command) {
     return { type: "wake", command, normalized };
   }
@@ -190,7 +254,7 @@ function detectIntent(text) {
   return { type: "unknown", command, normalized };
 }
 
-async function executeIntent(intent) {
+async function executeIntent(intent, originalText) {
   switch (intent.type) {
     case "ignore":
       return;
@@ -230,6 +294,16 @@ async function executeIntent(intent) {
       return;
     }
 
+    case "memory": {
+      const recent = getRecentContext();
+      if (!recent.length) {
+        await speak("Todavía no tengo conversación guardada, señor.");
+      } else {
+        await speak(`Recuerdo ${recent.length} mensajes recientes. La memoria está guardada localmente en este navegador, señor.`);
+      }
+      return;
+    }
+
     case "unknown":
       status.textContent = "Orden no reconocida.";
       await speak("No reconocí esa orden, señor.");
@@ -237,11 +311,35 @@ async function executeIntent(intent) {
   }
 }
 
+async function processInput(text, source = "text") {
+  const cleanText = text.trim();
+  if (!cleanText) return;
+
+  transcript.textContent = `${source === "voice" ? "Tú" : "Tú (texto)"}: ${cleanText}`;
+  addMemory("user", cleanText);
+
+  const intent = detectIntent(cleanText);
+  await executeIntent(intent, cleanText);
+
+  if (intent.type !== "ignore") {
+    addMemory("jarvis", `intención: ${intent.type}`);
+  }
+}
+
 cameraButton.addEventListener("click", startCamera);
 cameraOffButton.addEventListener("click", stopCamera);
+clearMemoryButton.addEventListener("click", clearMemory);
+
+textCommandForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const value = textCommand.value.trim();
+  if (!value) return;
+  textCommand.value = "";
+  await processInput(value, "text");
+});
 
 if (!SpeechRecognition) {
-  status.textContent = "Este navegador no admite reconocimiento de voz.";
+  status.textContent = "Este navegador no admite reconocimiento de voz. Puedes usar texto.";
   micButton.disabled = true;
 } else {
   const recognition = new SpeechRecognition();
@@ -257,10 +355,7 @@ if (!SpeechRecognition) {
 
   recognition.onresult = async (event) => {
     const text = event.results[0][0].transcript.trim();
-    transcript.textContent = `Tú: ${text}`;
-
-    const intent = detectIntent(text);
-    await executeIntent(intent);
+    await processInput(text, "voice");
   };
 
   recognition.onerror = (event) => {
@@ -271,6 +366,8 @@ if (!SpeechRecognition) {
     if (status.textContent === "Escuchando...") status.textContent = "Sistema listo.";
   };
 }
+
+renderMemoryStatus();
 
 window.addEventListener("beforeunload", () => {
   if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
