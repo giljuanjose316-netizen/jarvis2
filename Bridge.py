@@ -18,6 +18,7 @@ def abrir_aplicacion(app):
 
     comandos = {
         "chrome": ["chrome.exe"],
+        "edge": ["msedge.exe"],
         "vscode": ["Code.exe"],
         "notepad": ["notepad.exe"],
         "calculator": ["calc.exe"],
@@ -47,6 +48,7 @@ def abrir_aplicacion(app):
 def cerrar_aplicacion(app):
     procesos = {
         "chrome": "chrome.exe",
+        "edge": "msedge.exe",
         "vscode": "Code.exe",
         "notepad": "notepad.exe",
         "calculator": "CalculatorApp.exe",
