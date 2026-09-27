@@ -29,6 +29,8 @@ let conversationContext = {
   lastPlan: null
 };
 
+let pendingSystemAction = null;
+
 function browserSpeak(text) {
   if (!("speechSynthesis" in window)) throw new Error("El navegador no tiene síntesis de voz.");
   window.speechSynthesis.cancel();
@@ -362,6 +364,26 @@ function findReferencedApp(command) {
   return null;
 }
 
+async function executeSystemAction(action) {
+  status.textContent = "Ejecutando acción del sistema...";
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:3000/system?action=${encodeURIComponent(action)}`,
+      { method: "GET", cache: "no-store" }
+    );
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error de acción del sistema:", error);
+    return false;
+  }
+}
+
 function detectIntent(text) {
   const normalized = normalizeText(text);
   const command = removeWakeWord(text);
@@ -369,6 +391,10 @@ function detectIntent(text) {
 
   if (!saysJarvis && !jarvisActive) {
     return { type: "ignore", command, normalized };
+  }
+
+  if (/\b(confirmo|confirmar|si|sí)\b/.test(command) && pendingSystemAction) {
+    return { type: "system_confirm", action: pendingSystemAction, command, normalized };
   }
 
   if (/^(hola|buenos dias|buenas tardes|buenas noches|hey)$/.test(command)) {
@@ -406,6 +432,18 @@ function detectIntent(text) {
     /^mi nombre es /.test(command)
   ) {
     return { type: "remember", command, normalized };
+  }
+
+  if (/\b(bloquea|bloquear|bloqueame|bloquearme)\b/.test(command)) {
+    return { type: "system_action", action: "lock", command, normalized };
+  }
+
+  if (/\b(reinicia|reiniciar|reinicia el pc|reiniciar el pc|reinicia la computadora|reiniciar la computadora)\b/.test(command)) {
+    return { type: "system_action", action: "restart", command, normalized };
+  }
+
+  if (/\b(apaga|apagar|apaga el pc|apagar el pc|apaga la computadora|apagar la computadora)\b/.test(command)) {
+    return { type: "system_action", action: "shutdown", command, normalized };
   }
 
   const wantsOpen = /\b(abre|abrir|inicia|iniciar|lanza|lanzar|ejecuta|ejecutar|muestra|mostrar|abrele|abrile)\b/.test(command);
@@ -490,6 +528,37 @@ function createPlan(intent) {
         ],
         replayable: true
       };
+
+    case "system_action": {
+      if (intent.action === "lock") {
+        return {
+          type: "system_action",
+          actions: [{ type: "system_action", action: "lock" }],
+          response: "Voy a bloquear Windows, señor."
+        };
+      }
+
+      pendingSystemAction = intent.action;
+      const label = intent.action === "restart" ? "reiniciar Windows" : "apagar Windows";
+
+      return {
+        type: "system_confirmation",
+        actions: [],
+        response: `Para ${label}, necesito su confirmación. Diga: "Jarvis, confirmo".`
+      };
+    }
+
+    case "system_confirm": {
+      const action = intent.action;
+      pendingSystemAction = null;
+      return {
+        type: "system_action",
+        actions: [{ type: "system_action", action }],
+        response: action === "restart"
+          ? "Reiniciando Windows, señor."
+          : "Apagando Windows, señor."
+      };
+    }
 
     case "close_app":
       return {
@@ -589,6 +658,14 @@ async function executePlan(plan) {
       plan.response = opened
         ? `Señor, ya está abierto ${action.label}.`
         : `No puedo abrir ${action.label}. Verifique que el puente de Jarvis esté activo, señor.`;
+    }
+
+    if (action.type === "system_action") {
+      const executed = await executeSystemAction(action.action);
+
+      if (!executed) {
+        plan.response = "No pude ejecutar esa acción de Windows, señor. Verifique que el puente esté activo.";
+      }
     }
 
     if (action.type === "close_app") {
