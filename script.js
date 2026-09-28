@@ -475,6 +475,34 @@ function detectIntent(text) {
     return { type: "remember", command, normalized };
   }
 
+  // Objetivos — cuarta capa
+  let goalMatch = command.match(/^(?:crea|crear|define|definir) (?:un )?objetivo(?: de| para)? (.+)$/);
+  if (goalMatch && window.JarvisGoals) {
+    return { type: "goal_create", title: goalMatch[1].trim(), command, normalized };
+  }
+
+  if (/^(?:cual es mi objetivo|cual es el objetivo|cual es mi objetivo actual|que objetivo tengo|objetivo actual)$/.test(command) && window.JarvisGoals) {
+    return { type: "goal_status", command, normalized };
+  }
+
+  if (/^(?:muestra|mostrar|lista|listar) (?:mis )?objetivos$/.test(command) || /^(?:que objetivos tengo|mis objetivos)$/.test(command)) {
+    return { type: "goal_list", command, normalized };
+  }
+
+  let progressMatch = command.match(/^(?:marca|pon|actualiza|cambia) (?:el )?progreso (?:a|en) (\\d{1,3}) ?(?:por ciento|%)?$/);
+  if (progressMatch && window.JarvisGoals) {
+    return { type: "goal_progress", progress: Number(progressMatch[1]), command, normalized };
+  }
+
+  if (/^(?:completa|completar|termina|terminar) (?:el )?objetivo$/.test(command) && window.JarvisGoals) {
+    return { type: "goal_complete", command, normalized };
+  }
+
+  let milestoneMatch = command.match(/^(?:anade|añade|agrega|agregar|crea|crear) (?:un )?hito(?: al objetivo)? (.+)$/);
+  if (milestoneMatch && window.JarvisGoals) {
+    return { type: "goal_milestone", title: milestoneMatch[1].trim(), command, normalized };
+  }
+
   if (/\b(bloquea|bloquear|bloqueame|bloquearme)\b/.test(command)) {
     return { type: "system_action", action: "lock", command, normalized };
   }
@@ -569,6 +597,68 @@ function createPlan(intent) {
         ],
         replayable: true
       };
+
+    case "goal_create": {
+      const goal = window.JarvisGoals?.create(intent.title);
+      return {
+        type: "goal_create",
+        actions: [],
+        response: goal
+          ? `Objetivo creado: ${goal.title}. Progreso inicial: cero por ciento.`
+          : "No pude crear el objetivo, señor."
+      };
+    }
+
+    case "goal_status":
+      return {
+        type: "goal_status",
+        actions: [],
+        response: window.JarvisGoals?.summary() || "El sistema de objetivos no está disponible, señor."
+      };
+
+    case "goal_list": {
+      const goals = window.JarvisGoals?.list() || [];
+      return {
+        type: "goal_list",
+        actions: [],
+        response: goals.length
+          ? "Mis objetivos registrados son: " + goals.map((g, i) => `${i + 1}. ${g.title}, ${g.progress} por ciento.`).join(" ")
+          : "No hay objetivos registrados, señor."
+      };
+    }
+
+    case "goal_progress": {
+      const goal = window.JarvisGoals?.updateProgress(intent.progress);
+      return {
+        type: "goal_progress",
+        actions: [],
+        response: goal
+          ? `Progreso actualizado a ${goal.progress} por ciento para ${goal.title}.`
+          : "No hay un objetivo activo para actualizar, señor."
+      };
+    }
+
+    case "goal_complete": {
+      const goal = window.JarvisGoals?.complete();
+      return {
+        type: "goal_complete",
+        actions: [],
+        response: goal
+          ? `Objetivo completado: ${goal.title}.`
+          : "No hay un objetivo activo para completar, señor."
+      };
+    }
+
+    case "goal_milestone": {
+      const goal = window.JarvisGoals?.addMilestone(intent.title);
+      return {
+        type: "goal_milestone",
+        actions: [],
+        response: goal
+          ? `Hito añadido al objetivo ${goal.title}.`
+          : "No hay un objetivo activo para añadirle un hito, señor."
+      };
+    }
 
     case "system_action": {
       if (intent.action === "lock") {
