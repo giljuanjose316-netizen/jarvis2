@@ -134,7 +134,7 @@
       throw new Error("Autorización de Spotify requerida.");
     }
 
-    const response = await fetch("https://api.spotify.com/v1" + path, {
+    let response = await fetch("https://api.spotify.com/v1" + path, {
       ...options,
       headers: {
         Authorization: "Bearer " + token,
@@ -142,6 +142,26 @@
         ...(options.headers || {})
       }
     });
+
+    if (response.status === 401) {
+      const tokens = getTokens();
+      if (tokens?.refresh_token) {
+        try {
+          await refreshToken(tokens);
+          token = await getAccessToken();
+          response = await fetch("https://api.spotify.com/v1" + path, {
+            ...options,
+            headers: {
+              Authorization: "Bearer " + token,
+              "Content-Type": "application/json",
+              ...(options.headers || {})
+            }
+          });
+        } catch {
+          localStorage.removeItem(TOKEN_KEY);
+        }
+      }
+    }
 
     if (response.status === 401) {
       localStorage.removeItem(TOKEN_KEY);
@@ -158,6 +178,42 @@
     return response.json();
   }
 
+  async function getPlayableDevice() {
+    const data = await api("/me/player/devices");
+    const devices = (data?.devices || []).filter(device => !device.is_restricted);
+
+    if (!devices.length) {
+      throw new Error("No hay un dispositivo Spotify disponible. Abre Spotify en tu PC o teléfono e inténtalo de nuevo.");
+    }
+
+    return devices.find(device => device.is_active) || devices[0];
+  }
+
+  async function ensureDevice(device) {
+    if (device.is_active) return device;
+
+    await api("/me/player", {
+      method: "PUT",
+      body: JSON.stringify({
+        device_ids: [device.id],
+        play: false
+      })
+    });
+
+    return device;
+  }
+
+  function chooseBestTrack(tracks) {
+    const playable = tracks.filter(track => track && track.uri && track.is_playable !== false);
+    if (!playable.length) return null;
+
+    return playable.reduce((best, track) => {
+      const bestPopularity = Number(best.popularity || 0);
+      const trackPopularity = Number(track.popularity || 0);
+      return trackPopularity > bestPopularity ? track : best;
+    }, playable[0]);
+  }
+
   async function searchAndPlay(query) {
     const params = new URLSearchParams({
       q: query,
@@ -170,30 +226,37 @@
     const tracks = data?.tracks?.items || [];
     if (!tracks.length) throw new Error("No encontré canciones para esa búsqueda.");
 
-    const track = tracks[0];
+    const track = chooseBestTrack(tracks);
+    if (!track) throw new Error("No encontré una pista reproducible para esa búsqueda.");
 
-    await api("/me/player/play", {
+    const device = await getPlayableDevice();
+    await ensureDevice(device);
+
+    await api("/me/player/play?device_id=" + encodeURIComponent(device.id), {
       method: "PUT",
       body: JSON.stringify({ uris: [track.uri] })
     });
 
-    return track;
+    return { track, device };
   }
 
   async function pause() {
-    return api("/me/player/pause", { method: "PUT" });
+    const device = await getPlayableDevice();
+    return api("/me/player/pause?device_id=" + encodeURIComponent(device.id), { method: "PUT" });
   }
 
   async function resume() {
-    return api("/me/player/play", { method: "PUT" });
+    const device = await getPlayableDevice();
+    return api("/me/player/play?device_id=" + encodeURIComponent(device.id), { method: "PUT" });
   }
 
   async function next() {
-    return api("/me/player/next", { method: "POST" });
+    const device = await getPlayableDevice();
+    return api("/me/player/next?device_id=" + encodeURIComponent(device.id), { method: "POST" });
   }
 
   async function current() {
-    return api("/me/player/currently-playing");
+    return api("/me/player/currently-playing?market=CO");
   }
 
   async function handleCallback() {
@@ -232,7 +295,6 @@
     isConnected: () => !!getTokens()
   };
 
-  // Completa automáticamente el regreso desde Spotify después del OAuth PKCE.
   handleCallback()
     .then((connected) => {
       if (!connected) return;
