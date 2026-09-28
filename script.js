@@ -82,6 +82,12 @@ function reasoningSummary() {
     : "Mi módulo de razonamiento todavía no está disponible, señor.";
 }
 
+function autonomySummary() {
+  return window.JarvisAutonomy
+    ? window.JarvisAutonomy.summary()
+    : "Mi módulo de autonomía controlada todavía no está disponible, señor.";
+}
+
 function browserSpeak(text) {
   if (!("speechSynthesis" in window)) throw new Error("El navegador no tiene síntesis de voz.");
   window.speechSynthesis.cancel();
@@ -484,6 +490,14 @@ function detectIntent(text) {
     return { type: "reasoning_status", command, normalized };
   }
 
+  if (/^(?:trabaja|trabajar|continua|continuar|que sigue|qué sigue|siguiente paso|pausa|pausar|detente|detener|deten la tarea|detén la tarea|estado de autonomia|estado de autonomía|autonomia|autonomía)$/.test(command)) {
+    if (/^(?:trabaja|trabajar)/.test(command)) return { type: "autonomy_start", command, normalized };
+    if (/^(?:continua|continuar|que sigue|qué sigue|siguiente paso)/.test(command)) return { type: "autonomy_next", command, normalized };
+    if (/^(?:pausa|pausar)/.test(command)) return { type: "autonomy_pause", command, normalized };
+    if (/^(?:detente|detener|deten la tarea|detén la tarea)/.test(command)) return { type: "autonomy_stop", command, normalized };
+    return { type: "autonomy_status", command, normalized };
+  }
+
   const learningNoteMatch = command.match(/^(?:aprende|aprende que|recuerda como aprendizaje) (.+)$/);
   if (learningNoteMatch && window.JarvisLearning) {
     return { type: "learning_note", note: learningNoteMatch[1].trim(), command, normalized };
@@ -706,6 +720,52 @@ function createPlan(intent) {
           : "No hay un objetivo activo para añadirle un hito, señor."
       };
     }
+
+    case "autonomy_start": {
+      const goal = window.JarvisGoals?.getCurrent();
+      const result = window.JarvisAutonomy?.start(goal);
+      return {
+        type: "autonomy_start",
+        actions: [],
+        response: result?.ok
+          ? result.message
+          : (result?.message || "No pude iniciar la autonomía controlada, señor.")
+      };
+    }
+
+    case "autonomy_next": {
+      const result = window.JarvisAutonomy?.next();
+      return {
+        type: "autonomy_next",
+        actions: [],
+        response: result?.message || "No hay una tarea autónoma activa, señor."
+      };
+    }
+
+    case "autonomy_pause":
+      return {
+        type: "autonomy_pause",
+        actions: [],
+        response: window.JarvisAutonomy?.pause()
+          ? "Autonomía controlada en pausa, señor."
+          : "No hay una tarea autónoma en ejecución, señor."
+      };
+
+    case "autonomy_stop":
+      return {
+        type: "autonomy_stop",
+        actions: [],
+        response: window.JarvisAutonomy?.stop()
+          ? "He detenido la autonomía controlada, señor."
+          : "La autonomía controlada ya estaba detenida, señor."
+      };
+
+    case "autonomy_status":
+      return {
+        type: "autonomy_status",
+        actions: [],
+        response: autonomySummary()
+      };
 
     case "learning_status":
       return {
