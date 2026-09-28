@@ -28,22 +28,16 @@
   }
 
   function getTokens() {
-    try {
-      return JSON.parse(localStorage.getItem(TOKEN_KEY) || "null");
-    } catch {
-      return null;
-    }
+    try { return JSON.parse(localStorage.getItem(TOKEN_KEY) || "null"); }
+    catch { return null; }
   }
 
-  function saveTokens(tokens) {
-    localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens));
-  }
+  function saveTokens(tokens) { localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens)); }
 
   async function authorize() {
     const verifier = randomString();
     const state = randomString(32);
     const challenge = await getCodeChallenge(verifier);
-
     localStorage.setItem(VERIFIER_KEY, verifier);
     localStorage.setItem(STATE_KEY, state);
 
@@ -56,7 +50,6 @@
       redirect_uri: config.redirectUri,
       state
     });
-
     window.location.href = "https://accounts.spotify.com/authorize?" + params.toString();
   }
 
@@ -84,7 +77,6 @@
       refresh_token: data.refresh_token,
       expires_at: Date.now() + (data.expires_in * 1000)
     });
-
     localStorage.removeItem(VERIFIER_KEY);
     localStorage.removeItem(STATE_KEY);
     return data;
@@ -118,11 +110,7 @@
   async function getAccessToken() {
     let tokens = getTokens();
     if (!tokens) return null;
-
-    if (tokens.expires_at && Date.now() < tokens.expires_at - 60000) {
-      return tokens.access_token;
-    }
-
+    if (tokens.expires_at && Date.now() < tokens.expires_at - 60000) return tokens.access_token;
     tokens = await refreshToken(tokens);
     return tokens?.access_token || null;
   }
@@ -181,63 +169,69 @@
   async function getPlayableDevice() {
     const data = await api("/me/player/devices");
     const devices = (data?.devices || []).filter(device => !device.is_restricted);
-
     if (!devices.length) {
-      throw new Error("No hay un dispositivo Spotify disponible. Abre Spotify en tu PC o teléfono e inténtalo de nuevo.");
+      throw new Error("No hay un dispositivo Spotify disponible. Abre Spotify e inténtalo de nuevo.");
     }
-
     return devices.find(device => device.is_active) || devices[0];
   }
 
   async function ensureDevice(device) {
     if (device.is_active) return device;
-
     await api("/me/player", {
       method: "PUT",
-      body: JSON.stringify({
-        device_ids: [device.id],
-        play: false
-      })
+      body: JSON.stringify({ device_ids: [device.id], play: false })
     });
-
     return device;
   }
 
   function chooseBestTrack(tracks) {
     const playable = tracks.filter(track => track && track.uri && track.is_playable !== false);
     if (!playable.length) return null;
-
     return playable.reduce((best, track) => {
-      const bestPopularity = Number(best.popularity || 0);
-      const trackPopularity = Number(track.popularity || 0);
-      return trackPopularity > bestPopularity ? track : best;
+      return Number(track.popularity || 0) > Number(best.popularity || 0) ? track : best;
     }, playable[0]);
   }
 
-  async function searchAndPlay(query) {
+  function chooseRandomTrack(tracks) {
+    const playable = tracks.filter(track => track && track.uri && track.is_playable !== false);
+    if (!playable.length) return null;
+    return playable[Math.floor(Math.random() * playable.length)];
+  }
+
+  async function searchTracks(query, limit = 20) {
     const params = new URLSearchParams({
       q: query,
       type: "track",
-      limit: "10",
+      limit: String(limit),
       market: "CO"
     });
-
     const data = await api("/search?" + params.toString());
-    const tracks = data?.tracks?.items || [];
-    if (!tracks.length) throw new Error("No encontré canciones para esa búsqueda.");
+    return data?.tracks?.items || [];
+  }
 
-    const track = chooseBestTrack(tracks);
-    if (!track) throw new Error("No encontré una pista reproducible para esa búsqueda.");
-
+  async function playTrack(track) {
+    if (!track) throw new Error("No encontré una pista reproducible.");
     const device = await getPlayableDevice();
     await ensureDevice(device);
-
     await api("/me/player/play?device_id=" + encodeURIComponent(device.id), {
       method: "PUT",
       body: JSON.stringify({ uris: [track.uri] })
     });
-
     return { track, device };
+  }
+
+  async function searchAndPlay(query) {
+    const tracks = await searchTracks(query, 10);
+    if (!tracks.length) throw new Error("No encontré canciones para esa búsqueda.");
+    return playTrack(chooseBestTrack(tracks));
+  }
+
+  async function searchAndPlayRandom() {
+    const randomQueries = ["music", "popular", "hits", "songs", "playlist"];
+    const query = randomQueries[Math.floor(Math.random() * randomQueries.length)];
+    const tracks = await searchTracks(query, 20);
+    if (!tracks.length) throw new Error("No encontré canciones para reproducir.");
+    return playTrack(chooseRandomTrack(tracks));
   }
 
   async function pause() {
@@ -255,16 +249,13 @@
     return api("/me/player/next?device_id=" + encodeURIComponent(device.id), { method: "POST" });
   }
 
-  async function current() {
-    return api("/me/player/currently-playing?market=CO");
-  }
+  async function current() { return api("/me/player/currently-playing?market=CO"); }
 
   async function handleCallback() {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     const returnedState = params.get("state");
     const error = params.get("error");
-
     if (!code && !error) return false;
 
     if (error) {
@@ -286,6 +277,7 @@
   window.JarvisSpotify = {
     authorize,
     searchAndPlay,
+    searchAndPlayRandom,
     pause,
     resume,
     next,
