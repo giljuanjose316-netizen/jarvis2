@@ -458,6 +458,15 @@ function detectIntent(text) {
   const command = removeWakeWord(text);
   const saysJarvis = /\bjarvis\b/.test(normalized);
 
+  if (/^(?:pon|poner|reproduce|reproducir) (?:musica|música) (?:epica|épica)$/.test(command)) {
+    return { type: "spotify_search", query: "epic cinematic instrumental", command, normalized };
+  }
+
+  const spotifyMatch = command.match(/^(?:pon|poner|reproduce|reproducir) (?:musica|música) (.+)$/);
+  if (spotifyMatch) {
+    return { type: "spotify_search", query: spotifyMatch[1].trim(), command, normalized };
+  }
+
   if (!saysJarvis && !jarvisActive) {
     return { type: "ignore", command, normalized };
   }
@@ -648,6 +657,13 @@ function createPlan(intent) {
         type: "sleep",
         actions: [],
         response: "Entendido, señor. Me quedo en espera."
+      };
+
+    case "spotify_search":
+      return {
+        type: "spotify_search",
+        actions: [{ type: "spotify_search", query: intent.query }],
+        replayable: true
       };
 
     case "greeting":
@@ -962,6 +978,21 @@ async function executePlan(plan) {
   }
 
   for (const action of plan.actions) {
+    if (action.type === "spotify_search") {
+      status.textContent = "Buscando música en Spotify...";
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:3000/spotify?query=${encodeURIComponent(action.query)}`,
+          { method: "GET", cache: "no-store" }
+        );
+        if (!response.ok) throw new Error(await response.text());
+        plan.response = `He abierto Spotify buscando ${action.query}, señor.`;
+      } catch (error) {
+        console.error("Error abriendo Spotify:", error);
+        plan.response = "No pude abrir Spotify. Verifique que el puente de Jarvis esté activo, señor.";
+      }
+    }
+
     if (action.type === "open_app") {
       const opened = await openLocalApp(action.app, action.label);
 
