@@ -52,6 +52,17 @@ function cognitiveSummary() {
   );
 }
 
+function learningSet(intent, success = true, details = {}) {
+  if (!window.JarvisLearning) return;
+  window.JarvisLearning.recordInteraction(intent, success, details);
+}
+
+function learningSummary() {
+  return window.JarvisLearning
+    ? window.JarvisLearning.summary()
+    : "Mi módulo de aprendizaje todavía no está disponible, señor.";
+}
+
 function browserSpeak(text) {
   if (!("speechSynthesis" in window)) throw new Error("El navegador no tiene síntesis de voz.");
   window.speechSynthesis.cancel();
@@ -442,6 +453,19 @@ function detectIntent(text) {
     return { type: "cognitive_status", command, normalized };
   }
 
+  if (/\b(que has aprendido|qué has aprendido|que aprendiste|qué aprendiste|aprendizaje|lo que has aprendido)\b/.test(command)) {
+    return { type: "learning_status", command, normalized };
+  }
+
+  if (/\b(que sugieres|qué sugieres|que me sugieres|qué me sugieres|sugiere una mejora|sugiere algo)\b/.test(command)) {
+    return { type: "learning_suggest", command, normalized };
+  }
+
+  const learningNoteMatch = command.match(/^(?:aprende|aprende que|recuerda como aprendizaje) (.+)$/);
+  if (learningNoteMatch && window.JarvisLearning) {
+    return { type: "learning_note", note: learningNoteMatch[1].trim(), command, normalized };
+  }
+
   if (/\b(toma|tomar|saca|sacar)\s+(una\s+)?foto\b/.test(command)) {
     return { type: "photo", command, normalized };
   }
@@ -657,6 +681,31 @@ function createPlan(intent) {
         response: goal
           ? `Hito añadido al objetivo ${goal.title}.`
           : "No hay un objetivo activo para añadirle un hito, señor."
+      };
+    }
+
+    case "learning_status":
+      return {
+        type: "learning_status",
+        actions: [],
+        response: learningSummary()
+      };
+
+    case "learning_suggest":
+      return {
+        type: "learning_suggest",
+        actions: [],
+        response: window.JarvisLearning?.suggest() || "Todavía no puedo generar una sugerencia, señor."
+      };
+
+    case "learning_note": {
+      const note = window.JarvisLearning?.addNote(intent.note);
+      return {
+        type: "learning_note",
+        actions: [],
+        response: note
+          ? "He añadido ese dato a mi aprendizaje local, señor."
+          : "No pude guardar ese aprendizaje, señor."
       };
     }
 
@@ -895,6 +944,11 @@ async function processInput(text, source = "text") {
 
   await executePlan(plan);
   await respond(plan);
+
+  const learningSuccess = !/no pude|no puedo|no se pudo|no reconoc/i.test(plan.response || "");
+  learningSet(intent.type, learningSuccess, {
+    app: intent.app || plan.actions?.find((action) => action.app)?.app || null
+  });
 
   consciousnessSet({
     state: "idle",
