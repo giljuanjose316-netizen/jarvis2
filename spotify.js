@@ -231,4 +231,17 @@
     handleCallback,
     isConnected: () => !!getTokens()
   };
+
+  // Completa automáticamente el regreso desde Spotify después del OAuth PKCE.
+  handleCallback()
+    .then((connected) => {
+      if (!connected) return;
+      const status = document.getElementById("status");
+      if (status) status.textContent = "Spotify conectado. Jarvis está listo.";
+    })
+    .catch((error) => {
+      console.error("Spotify OAuth:", error);
+      const status = document.getElementById("status");
+      if (status) status.textContent = "No se pudo completar la conexión con Spotify.";
+    });
 })();
