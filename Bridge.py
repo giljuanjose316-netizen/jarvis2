@@ -54,12 +54,28 @@ def cerrar_aplicacion(app):
         "calculator": "CalculatorApp.exe",
         "explorer": "explorer.exe",
         "roblox": "RobloxPlayerBeta.exe",
+        "discord": "Discord.exe",
+        "spotify": "Spotify.exe",
+        "steam": "steam.exe",
+        "epic": "EpicGamesLauncher.exe",
+        "whatsapp": "WhatsApp.exe",
+        "telegram": "Telegram.exe",
+        "word": "WINWORD.EXE",
+        "excel": "EXCEL.EXE",
+        "powerpoint": "POWERPNT.EXE",
     }
 
     if app not in procesos:
-        raise ValueError("Cierre no permitido.")
+        raise ValueError("Cierre no permitido para esa aplicación.")
 
-    subprocess.run(["taskkill", "/IM", procesos[app], "/F"], capture_output=True, text=True)
+    result = subprocess.run(
+        ["taskkill", "/IM", procesos[app], "/F"],
+        capture_output=True,
+        text=True
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or f"No se encontró el proceso de {app}.")
 
 def accion_sistema(action):
     if action == "lock":
@@ -105,12 +121,10 @@ class Handler(BaseHTTPRequestHandler):
 
             if parsed.path == "/spotify":
                 import webbrowser
-
                 query = params.get("query", [""])[0].strip()
                 if not query:
                     self._send(400, "Falta query.")
                     return
-
                 spotify_url = "https://open.spotify.com/search/" + quote(query)
                 webbrowser.open(spotify_url)
                 self._send(200, f"Spotify abierto: {query}")
