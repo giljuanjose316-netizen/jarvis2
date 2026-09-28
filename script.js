@@ -1094,36 +1094,84 @@ if (!SpeechRecognition) {
 } else {
   const recognition = new SpeechRecognition();
   recognition.lang = "es-CO";
-  recognition.continuous = false;
+  recognition.continuous = true;
   recognition.interimResults = false;
 
-  micButton.addEventListener("click", () => {
-    transcript.textContent = "";
-    status.textContent = "Escuchando...";
+  let voiceListening = false;
+  let restarting = false;
+
+  function startVoiceListener() {
+    if (voiceListening || restarting) return;
 
     try {
+      voiceListening = true;
       recognition.start();
+      status.textContent = "Esperando la palabra Jarvis...";
     } catch (error) {
-      console.error(error);
+      voiceListening = false;
+      console.warn("No se pudo iniciar el reconocimiento automáticamente:", error);
+      status.textContent = "Pulsa el micrófono una vez para conceder permiso de voz.";
     }
+  }
+
+  function restartVoiceListener() {
+    if (restarting) return;
+    restarting = true;
+    voiceListening = false;
+
+    window.setTimeout(() => {
+      restarting = false;
+      startVoiceListener();
+    }, 350);
+  }
+
+  micButton.addEventListener("click", () => {
+    startVoiceListener();
   });
 
   recognition.onresult = async (event) => {
-    await processInput(
-      event.results[0][0].transcript.trim(),
-      "voice"
-    );
+    const result = event.results[event.results.length - 1];
+    if (!result || !result[0]) return;
+
+    const heard = result[0].transcript.trim();
+    if (!heard) return;
+
+    const normalized = normalizeText(heard);
+    const hasWakeWord = /\\bjarvis\\b/.test(normalized);
+
+    // Antes de activar Jarvis, solo respondemos a la palabra de activación.
+    if (!jarvisActive && !hasWakeWord) {
+      status.textContent = "Esperando la palabra Jarvis...";
+      return;
+    }
+
+    await processInput(heard, "voice");
+
+    if (jarvisActive) {
+      status.textContent = "Jarvis activo. Escuchando...";
+    }
   };
 
   recognition.onerror = (event) => {
-    status.textContent = `Error de micrófono: ${event.error}`;
+    voiceListening = false;
+
+    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      status.textContent = "Permiso de micrófono necesario. Pulsa el micrófono una vez.";
+      return;
+    }
+
+    if (event.error !== "aborted" && event.error !== "no-speech") {
+      status.textContent = `Error de micrófono: ${event.error}`;
+    }
   };
 
   recognition.onend = () => {
-    if (status.textContent === "Escuchando...") {
-      status.textContent = "Sistema listo.";
-    }
+    voiceListening = false;
+    if (!document.hidden) restartVoiceListener();
   };
+
+  // Intento de activación automática al entrar a Jarvis.
+  window.setTimeout(startVoiceListener, 600);
 }
 
 renderMemoryStatus();
