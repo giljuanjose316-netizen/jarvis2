@@ -1137,7 +1137,7 @@ if (!SpeechRecognition) {
     if (!heard) return;
 
     const normalized = normalizeText(heard);
-    const hasWakeWord = /\\bjarvis\\b/.test(normalized);
+    const hasWakeWord = /\bjarvis\b/.test(normalized);
 
     // Antes de activar Jarvis, solo respondemos a la palabra de activación.
     if (!jarvisActive && !hasWakeWord) {
