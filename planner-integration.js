@@ -8,6 +8,39 @@
   const originalProcessInput = window.processInput;
 
   window.processInput = async function jarvisPlannedInput(text, source = "text") {
+    const raw = String(text || "").trim();
+    const normalized = raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    const asksForPlan = /\b(plan|planifica|planificar|planea|planeear|que plan tienes|como lo harias|cuales son los pasos)\b/.test(normalized);
+
+    if (asksForPlan && window.JarvisPlanner && typeof window.detectIntent === "function" && typeof window.createPlan === "function") {
+      const command = normalized
+        .replace(/\bjarvis\b/g, "")
+        .replace(/\b(planifica|planificar|planea|planeear|plan|cuales son los pasos|que plan tienes|como lo harias)\b/g, "")
+        .trim();
+
+      if (command) {
+        const intent = window.detectIntent(command);
+        const preview = window.createPlan(intent);
+        window.JarvisPlanner.create(intent, preview);
+        const current = window.JarvisPlanner.get().currentPlan;
+
+        const stepText = (current?.steps || [])
+          .map((step) => step.order + ". " + step.label)
+          .join(". ");
+
+        const response = stepText
+          ? "El plan sería: " + stepText + "."
+          : window.JarvisPlanner.summary();
+
+        const statusNode = document.getElementById("status");
+        if (statusNode) statusNode.textContent = "Plan preparado.";
+        if (typeof window.speak === "function") await window.speak(response);
+
+        window.JarvisPlanner.complete(true);
+        return;
+      }
+    }
     const clean = String(text || "").trim();
 
     if (clean && window.JarvisPlanner && typeof window.detectIntent === "function" && typeof window.createPlan === "function") {
