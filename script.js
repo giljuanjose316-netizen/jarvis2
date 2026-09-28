@@ -979,17 +979,17 @@ async function executePlan(plan) {
 
   for (const action of plan.actions) {
     if (action.type === "spotify_search") {
-      status.textContent = "Buscando música en Spotify...";
+      status.textContent = "Buscando y reproduciendo música en Spotify...";
       try {
-        const response = await fetch(
-          `http://127.0.0.1:3000/spotify?query=${encodeURIComponent(action.query)}`,
-          { method: "GET", cache: "no-store" }
-        );
-        if (!response.ok) throw new Error(await response.text());
-        plan.response = `He abierto Spotify buscando ${action.query}, señor.`;
+        if (!window.JarvisSpotify) throw new Error("Módulo Spotify no disponible.");
+        const track = await window.JarvisSpotify.searchAndPlay(action.query);
+        const artist = track.artists?.map((item) => item.name).join(", ") || "artista desconocido";
+        plan.response = `Reproduciendo ${track.name} de ${artist} en Spotify, señor.`;
       } catch (error) {
-        console.error("Error abriendo Spotify:", error);
-        plan.response = "No pude abrir Spotify. Verifique que el puente de Jarvis esté activo, señor.";
+        console.error("Error reproduciendo Spotify:", error);
+        plan.response = error?.message?.includes("Autorización de Spotify requerida")
+          ? "Necesito que autorice Spotify. Le he enviado a la pantalla de autorización, señor."
+          : "No pude reproducir esa música en Spotify. Verifique que Spotify esté abierto en un dispositivo activo y vuelva a intentarlo, señor.";
       }
     }
 
