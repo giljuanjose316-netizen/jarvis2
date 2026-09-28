@@ -38,6 +38,20 @@ function consciousnessSet(patch = {}, eventType = null, eventDetail = "") {
 }
 
 
+function cognitiveSet(patch = {}, eventType = null, eventDetail = "") {
+  if (!window.JarvisCognitive) return;
+  window.JarvisCognitive.set(patch);
+  if (eventType) window.JarvisCognitive.remember(eventType, eventDetail);
+}
+
+function cognitiveSummary() {
+  if (!window.JarvisCognitive) return "Mi contexto cognitivo todavía no está disponible, señor.";
+  return window.JarvisCognitive.buildSummary(
+    window.JarvisConsciousness ? window.JarvisConsciousness.get() : null,
+    getRecentContext()
+  );
+}
+
 function browserSpeak(text) {
   if (!("speechSynthesis" in window)) throw new Error("El navegador no tiene síntesis de voz.");
   window.speechSynthesis.cancel();
@@ -305,6 +319,8 @@ async function startCamera() {
 
     await camera.play();
     cameraStatus.textContent = "Cámara activa.";
+    consciousnessSet({ cameraActive: true }, "camera", "Cámara activada");
+    cognitiveSet({ activeMode: "execution", lastTopic: "cámara" });
     cameraButton.textContent = "Cámara activa";
     cameraButton.disabled = true;
     cameraOffButton.disabled = false;
@@ -325,6 +341,8 @@ function stopCamera() {
 
   camera.srcObject = null;
   cameraStatus.textContent = "Cámara inactiva.";
+  consciousnessSet({ cameraActive: false }, "camera", "Cámara desactivada");
+  cognitiveSet({ activeMode: "conversation", lastTopic: "cámara" }); 
   cameraButton.textContent = "Activar cámara";
   cameraButton.disabled = false;
   cameraOffButton.disabled = true;
@@ -418,6 +436,10 @@ function detectIntent(text) {
 
   if (/\b(que estas haciendo|qué estás haciendo|cual es tu estado|cuál es tu estado|estado de jarvis|conciencia)\b/.test(command)) {
     return { type: "consciousness_status", command, normalized };
+  }
+
+  if (/\b(contexto|contexto actual|situacion|situación|que sabes de la situacion|qué sabes de la situación|que estas considerando|qué estás considerando)\b/.test(command)) {
+    return { type: "cognitive_status", command, normalized };
   }
 
   if (/\b(toma|tomar|saca|sacar)\s+(una\s+)?foto\b/.test(command)) {
@@ -613,6 +635,13 @@ function createPlan(intent) {
           : "Mi módulo de estado operativo todavía no está disponible, señor."
       };
 
+    case "cognitive_status":
+      return {
+        type: "cognitive_status",
+        actions: [],
+        response: cognitiveSummary()
+      };
+
     case "photo":
       return {
         type: "photo",
@@ -751,11 +780,28 @@ async function processInput(text, source = "text") {
   addMemory("user", cleanText);
 
   const intent = detectIntent(cleanText);
+
+  if (window.JarvisCognitive) {
+    window.JarvisCognitive.registerInteraction(source, intent.type);
+    cognitiveSet({
+      activeMode: window.JarvisCognitive.inferMode(intent.type),
+      lastTopic: intent.type,
+      userPresent: true
+    });
+  }
   const plan = createPlan(intent);
 
   conversationContext.lastIntent = intent.type;
   conversationContext.lastPlan = plan;
   consciousnessSet({ lastIntent: intent.type, currentTask: plan.type });
+
+  if (window.JarvisCognitive) {
+    window.JarvisCognitive.setDecision(
+      plan.type,
+      plan.replayable ? "Puede repetirse la última acción." : null
+    );
+    window.JarvisCognitive.remember("decision", plan.type);
+  }
 
   await executePlan(plan);
   await respond(plan);
@@ -765,6 +811,16 @@ async function processInput(text, source = "text") {
     currentTask: null,
     lastResult: plan.response || "completado",
     pendingConfirmation: pendingSystemAction
+  });
+
+  cognitiveSet({
+    activeMode: "standby",
+    priority: pendingSystemAction ? "alta" : "normal",
+    nextSuggestedAction: pendingSystemAction
+      ? "Esperar confirmación del usuario."
+      : plan.replayable
+        ? "Esperar nueva orden o una petición para repetir."
+        : null
   });
 
   if (intent.type !== "ignore") {
