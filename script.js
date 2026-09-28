@@ -273,7 +273,7 @@ function normalizeText(text) {
 
 function removeWakeWord(text) {
   return normalizeText(text)
-    .replace(/\bjarvis\b/g, "")
+    .replace(/\b(jarvis|yarvis|jervis|harvis)\b/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -458,13 +458,28 @@ function detectIntent(text) {
   const command = removeWakeWord(text);
   const saysJarvis = /\bjarvis\b/.test(normalized);
 
-  if (/^(?:pon|poner|reproduce|reproducir) (?:musica|música) (?:epica|épica)$/.test(command)) {
-    return { type: "spotify_search", query: "epic cinematic instrumental", command, normalized };
+  const epicMusicMatch = command.match(
+    /^(?:pon|poner|ponme|reproduce|reproducir) (?:la )?musica epica(?: por favor)?$/
+  );
+  if (epicMusicMatch) {
+    return {
+      type: "spotify_search",
+      query: "epic cinematic instrumental",
+      command,
+      normalized
+    };
   }
 
-  const spotifyMatch = command.match(/^(?:pon|poner|reproduce|reproducir) (?:musica|música) (.+)$/);
+  const spotifyMatch = command.match(
+    /^(?:pon|poner|ponme|reproduce|reproducir)(?:me)? (?:la )?musica (.+?)(?: por favor)?$/
+  );
   if (spotifyMatch) {
-    return { type: "spotify_search", query: spotifyMatch[1].trim(), command, normalized };
+    return {
+      type: "spotify_search",
+      query: spotifyMatch[1].trim(),
+      command,
+      normalized
+    };
   }
 
   if (!saysJarvis && !jarvisActive) {
@@ -1183,7 +1198,9 @@ if (!SpeechRecognition) {
     if (!heard) return;
 
     const normalized = normalizeText(heard);
-    const hasWakeWord = /\bjarvis\b/.test(normalized);
+    const hasWakeWord = /\b(jarvis|yarvis|jervis|harvis)\b/.test(normalized);
+
+    transcript.textContent = `Micrófono: ${heard}`;
 
     // Antes de activar Jarvis, solo respondemos a la palabra de activación.
     if (!jarvisActive && !hasWakeWord) {
