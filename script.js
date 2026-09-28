@@ -733,6 +733,15 @@ function createPlan(intent) {
       };
     }
 
+    case "autonomy_resume":
+      return {
+        type: "autonomy_resume",
+        actions: [],
+        response: window.JarvisAutonomy?.resume()
+          ? "Autonomía controlada reanudada, señor."
+          : "La autonomía controlada no está en pausa, señor."
+      };
+
     case "autonomy_next": {
       const result = window.JarvisAutonomy?.next();
       return {
