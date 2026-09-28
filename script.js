@@ -63,6 +63,25 @@ function learningSummary() {
     : "Mi módulo de aprendizaje todavía no está disponible, señor.";
 }
 
+function reasoningDecision(intent, cleanText) {
+  if (!window.JarvisReasoning) return null;
+
+  return window.JarvisReasoning.reason({
+    intent: intent.type,
+    command: cleanText,
+    consciousness: window.JarvisConsciousness ? window.JarvisConsciousness.get() : null,
+    cognitive: window.JarvisCognitive ? window.JarvisCognitive.get() : null,
+    goal: window.JarvisGoals ? window.JarvisGoals.getCurrent() : null,
+    learning: window.JarvisLearning ? window.JarvisLearning.get() : null
+  });
+}
+
+function reasoningSummary() {
+  return window.JarvisReasoning
+    ? window.JarvisReasoning.summary()
+    : "Mi módulo de razonamiento todavía no está disponible, señor.";
+}
+
 function browserSpeak(text) {
   if (!("speechSynthesis" in window)) throw new Error("El navegador no tiene síntesis de voz.");
   window.speechSynthesis.cancel();
@@ -461,6 +480,10 @@ function detectIntent(text) {
     return { type: "learning_suggest", command, normalized };
   }
 
+  if (/\b(que decidiste|qué decidiste|cual es tu decision|cuál es tu decisión|por que decidiste|por qué decidiste|razonamiento|que estas considerando antes de actuar|qué estás considerando antes de actuar)\b/.test(command)) {
+    return { type: "reasoning_status", command, normalized };
+  }
+
   const learningNoteMatch = command.match(/^(?:aprende|aprende que|recuerda como aprendizaje) (.+)$/);
   if (learningNoteMatch && window.JarvisLearning) {
     return { type: "learning_note", note: learningNoteMatch[1].trim(), command, normalized };
@@ -709,6 +732,13 @@ function createPlan(intent) {
       };
     }
 
+    case "reasoning_status":
+      return {
+        type: "reasoning_status",
+        actions: [],
+        response: reasoningSummary()
+      };
+
     case "system_action": {
       if (intent.action === "lock") {
         return {
@@ -928,6 +958,8 @@ async function processInput(text, source = "text") {
       userPresent: true
     });
   }
+  const decision = reasoningDecision(intent, cleanText);
+
   const plan = createPlan(intent);
 
   conversationContext.lastIntent = intent.type;
@@ -936,10 +968,10 @@ async function processInput(text, source = "text") {
 
   if (window.JarvisCognitive) {
     window.JarvisCognitive.setDecision(
-      plan.type,
-      plan.replayable ? "Puede repetirse la última acción." : null
+      decision?.mode || plan.type,
+      decision?.nextAction || (plan.replayable ? "Puede repetirse la última acción." : null)
     );
-    window.JarvisCognitive.remember("decision", plan.type);
+    window.JarvisCognitive.remember("decision", decision?.mode || plan.type);
   }
 
   await executePlan(plan);
