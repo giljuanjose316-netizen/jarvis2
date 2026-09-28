@@ -274,6 +274,9 @@ function normalizeText(text) {
 function removeWakeWord(text) {
   return normalizeText(text)
     .replace(/\b(jarvis|yarvis|jervis|harvis)\b/g, "")
+    .replace(/\bpor favor\b/g, "")
+    .replace(/\bporfa\b/g, "")
+    .replace(/\bseñor\b/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -456,7 +459,7 @@ async function executeSystemAction(action) {
 function detectIntent(text) {
   const normalized = normalizeText(text);
   const command = removeWakeWord(text);
-  const saysJarvis = /\bjarvis\b/.test(normalized);
+  const saysJarvis = /\b(jarvis|yarvis|jervis|harvis)\b/.test(normalized);
 
   const epicMusicMatch = command.match(
     /^(?:pon|poner|ponme|reproduce|reproducir) (?:la )?musica epica(?: por favor)?$/
@@ -622,6 +625,23 @@ function detectIntent(text) {
   ) {
     const app = findReferencedApp(command);
 
+    if (app) {
+      return {
+        type: "close_app",
+        app: app.app,
+        label: app.label,
+        command,
+        normalized
+      };
+    }
+  }
+
+  // Cierre explícito de aplicaciones aunque el reconocimiento añada artículos o "por favor".
+  const closeMatch = command.match(
+    /^(?:cierra|cerrar|sal|salir|termina|terminar|apaga|apagar)\s+(?:la|el|los|las)?\s*(.+)$/
+  );
+  if (closeMatch) {
+    const app = findReferencedApp(closeMatch[1].trim());
     if (app) {
       return {
         type: "close_app",
