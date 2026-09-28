@@ -620,6 +620,10 @@ function detectIntent(text) {
     }
   }
 
+  if (/^(?:descansa|descansar|duerme|dormir)$/.test(command)) {
+    return { type: "sleep", command, normalized };
+  }
+
   if (saysJarvis && !command) {
     return { type: "wake", command, normalized };
   }
@@ -637,6 +641,13 @@ function createPlan(intent) {
         type: "wake",
         actions: [],
         response: "Sí, señor."
+      };
+
+    case "sleep":
+      return {
+        type: "sleep",
+        actions: [],
+        response: "Entendido, señor. Me quedo en espera."
       };
 
     case "greeting":
@@ -944,6 +955,10 @@ async function executePlan(plan) {
 
   if (plan.type === "wake" || plan.type === "greeting") {
     jarvisActive = true;
+  }
+
+  if (plan.type === "sleep") {
+    jarvisActive = false;
   }
 
   for (const action of plan.actions) {
