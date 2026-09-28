@@ -1,5 +1,5 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 from pathlib import Path
 import os
 import subprocess
@@ -101,6 +101,19 @@ class Handler(BaseHTTPRequestHandler):
                 app = params.get("app", [""])[0]
                 cerrar_aplicacion(app)
                 self._send(200, f"Cerrado: {app}")
+                return
+
+            if parsed.path == "/spotify":
+                import webbrowser
+
+                query = params.get("query", [""])[0].strip()
+                if not query:
+                    self._send(400, "Falta query.")
+                    return
+
+                spotify_url = "https://open.spotify.com/search/" + quote(query)
+                webbrowser.open(spotify_url)
+                self._send(200, f"Spotify abierto: {query}")
                 return
 
             if parsed.path == "/system":
