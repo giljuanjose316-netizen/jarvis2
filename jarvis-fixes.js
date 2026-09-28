@@ -1,9 +1,8 @@
-/* JARVIS_FIXES_V2 */
+/* JARVIS_FIXES_V3 */
 (() => {
   const originalDetectIntent = window.detectIntent;
   const originalCreatePlan = window.createPlan;
   const originalExecutePlan = window.executePlan;
-  const originalSpeak = window.speak;
 
   const extraApps = [
     { pattern: /\b(discord)\b/, app: "discord", label: "Discord" },
@@ -37,6 +36,11 @@
       .trim();
   }
 
+  function syncOriginalActive(value) {
+    window.jarvisActive = value;
+    try { window.eval(`jarvisActive = ${value ? "true" : "false"}`); } catch {}
+  }
+
   function findApp(command) {
     const normalized = normalize(command);
     const match = extraApps.find(item => item.pattern.test(normalized));
@@ -53,15 +57,51 @@
 
   function stopAllSpeech() {
     try { window.speechSynthesis?.cancel(); } catch {}
-    try {
-      if (window.JarvisAudioController?.stop) window.JarvisAudioController.stop();
-    } catch {}
+    try { window.JarvisAudioController?.stop?.(); } catch {}
     try {
       document.querySelectorAll("audio").forEach(audio => {
         audio.pause();
         audio.currentTime = 0;
       });
     } catch {}
+  }
+
+  async function speakFixed(text) {
+    if (!text) return;
+    stopAllSpeech();
+
+    try {
+      const response = await fetch("/api/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+      if (!response.ok) throw new Error(`TTS ${response.status}: ${await response.text()}`);
+
+      const audioUrl = URL.createObjectURL(await response.blob());
+      const audio = new Audio(audioUrl);
+      window.JarvisAudioController = {
+        stop() {
+          try { audio.pause(); audio.currentTime = 0; } catch {}
+          URL.revokeObjectURL(audioUrl);
+        }
+      };
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        if (window.JarvisAudioController?.stop) delete window.JarvisAudioController;
+      };
+      await audio.play();
+    } catch (error) {
+      console.error("ElevenLabs no pudo reproducir el audio:", error);
+      try {
+        window.speechSynthesis?.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "es-CO";
+        window.speechSynthesis.speak(utterance);
+      } catch (fallbackError) {
+        console.error(fallbackError);
+      }
+    }
   }
 
   function detectIntentFixed(text) {
@@ -81,12 +121,7 @@
       /^(?:pon|poner|ponme|reproduce|reproducir)(?:me)?\s+(?:la\s+)?musica\s+(.+?)(?:\s+por favor)?$/
     );
     if (spotifyMatch) {
-      return {
-        type: "spotify_search",
-        query: spotifyMatch[1].trim(),
-        command,
-        normalized
-      };
+      return { type: "spotify_search", query: spotifyMatch[1].trim(), command, normalized };
     }
 
     if (!saysJarvis && !window.jarvisActive) {
@@ -94,19 +129,8 @@
     }
 
     if (/^(?:cierra|cerrar|sal|salir|termina|terminar|apaga|apagar)\s+/.test(command)) {
-      const app = findApp(command.replace(
-        /^(?:cierra|cerrar|sal|salir|termina|terminar|apaga|apagar)\s+/,
-        ""
-      ));
-      if (app) {
-        return {
-          type: "close_app",
-          app: app.app,
-          label: app.label,
-          command,
-          normalized
-        };
-      }
+      const app = findApp(command.replace(/^(?:cierra|cerrar|sal|salir|termina|terminar|apaga|apagar)\s+/, ""));
+      if (app) return { type: "close_app", app: app.app, label: app.label, command, normalized };
     }
 
     if (originalDetectIntent) {
@@ -124,31 +148,19 @@
   }
 
   function createPlanFixed(intent) {
-    if (intent.type === "silence") {
-      return { type: "silence", actions: [] };
-    }
-
+    if (intent.type === "silence") return { type: "silence", actions: [] };
     if (intent.type === "spotify_random") {
-      return {
-        type: "spotify_random",
-        actions: [{ type: "spotify_random" }],
-        replayable: true
-      };
+      return { type: "spotify_random", actions: [{ type: "spotify_random" }], replayable: true };
     }
-
     if (intent.type === "close_app") {
-      return {
-        type: "close_app",
-        actions: [{ type: "close_app", app: intent.app, label: intent.label }]
-      };
+      return { type: "close_app", actions: [{ type: "close_app", app: intent.app, label: intent.label }] };
     }
-
     return originalCreatePlan(intent);
   }
 
   async function executePlanFixed(plan) {
     if (plan.type === "silence") {
-      window.jarvisActive = false;
+      syncOriginalActive(false);
       stopAllSpeech();
       const status = document.getElementById("status");
       if (status) status.textContent = "Esperando la palabra Jarvis...";
@@ -180,11 +192,10 @@
   async function processInputFixed(text, source = "text") {
     const cleanText = String(text || "").trim();
     if (!cleanText) return;
-
     const command = commandWithoutWakeWord(cleanText);
 
     if (/^(callate|silencio|deja de hablar|no hables)$/.test(command)) {
-      window.jarvisActive = false;
+      syncOriginalActive(false);
       stopAllSpeech();
       const status = document.getElementById("status");
       if (status) status.textContent = "Esperando la palabra Jarvis...";
@@ -194,29 +205,23 @@
     }
 
     const transcript = document.getElementById("transcript");
-    if (transcript) {
-      transcript.textContent = `${source === "voice" ? "Tú" : "Tú (texto)"}: ${cleanText}`;
-    }
+    if (transcript) transcript.textContent = `${source === "voice" ? "Tú" : "Tú (texto)"}: ${cleanText}`;
 
     const intent = detectIntentFixed(cleanText);
     if (intent.type === "ignore") return;
-
     const plan = createPlanFixed(intent);
 
-    if (intent.type === "wake" || plan.type !== "silence") {
-      window.jarvisActive = true;
-    }
+    if (intent.type === "wake" || plan.type !== "silence") syncOriginalActive(true);
 
     await executePlanFixed(plan);
-
-    if (plan.response && plan.type !== "silence") {
-      await originalSpeak(plan.response);
-    }
+    if (plan.response && plan.type !== "silence") await speakFixed(plan.response);
   }
 
-  window.jarvisActive = false;
+  syncOriginalActive(false);
   window.detectIntent = detectIntentFixed;
   window.createPlan = createPlanFixed;
   window.executePlan = executePlanFixed;
   window.processInput = processInputFixed;
+  window.speak = speakFixed;
+  window.JarvisCommandFixes = { stopAllSpeech };
 })();
