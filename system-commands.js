@@ -22,22 +22,11 @@
     .trim();
 
   const appTargets = [
-    ["chrome", "Chrome"],
-    ["edge", "Microsoft Edge"],
-    ["vscode", "Visual Studio Code"],
-    ["notepad", "Bloc de notas"],
-    ["calculator", "Calculadora"],
-    ["explorer", "Explorador de archivos"],
-    ["roblox", "Roblox"],
-    ["discord", "Discord"],
-    ["spotify", "Spotify"],
-    ["steam", "Steam"],
-    ["epic", "Epic Games"],
-    ["whatsapp", "WhatsApp"],
-    ["telegram", "Telegram"],
-    ["word", "Word"],
-    ["excel", "Excel"],
-    ["powerpoint", "PowerPoint"]
+    ["chrome", "Chrome"], ["edge", "Microsoft Edge"], ["vscode", "Visual Studio Code"],
+    ["notepad", "Bloc de notas"], ["calculator", "Calculadora"], ["explorer", "Explorador de archivos"],
+    ["roblox", "Roblox"], ["discord", "Discord"], ["spotify", "Spotify"], ["steam", "Steam"],
+    ["epic", "Epic Games"], ["whatsapp", "WhatsApp"], ["telegram", "Telegram"],
+    ["word", "Word"], ["excel", "Excel"], ["powerpoint", "PowerPoint"]
   ];
 
   const jokes = [
@@ -51,11 +40,8 @@
     try {
       const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
       return value && typeof value === "object" ? value : {};
-    } catch {
-      return {};
-    }
+    } catch { return {}; }
   };
-
   const saveAliases = (aliases) => localStorage.setItem(STORAGE_KEY, JSON.stringify(aliases));
 
   const speak = async (text) => {
@@ -76,9 +62,7 @@
 
   const pauseEverything = () => {
     if (window.speechSynthesis) window.speechSynthesis.pause();
-    document.querySelectorAll("audio").forEach((audio) => {
-      try { audio.pause(); } catch {}
-    });
+    document.querySelectorAll("audio").forEach((audio) => { try { audio.pause(); } catch {} });
   };
 
   const resumeEverything = () => {
@@ -101,12 +85,21 @@
     const skipped = [];
     const closed = [];
 
-    for (const [app, label] of appTargets) {
+    const shouldKeep = (app, label) => {
       const normalizedLabel = normalize(label);
-      const keep = [...excluded].some((item) =>
+      return [...excluded].some((item) =>
         item === app || item === normalizedLabel || normalizedLabel.includes(item) || item.includes(normalizedLabel)
       );
-      if (keep) {
+    };
+
+    // Habla antes del cierre por si el navegador actual está dentro de las aplicaciones a cerrar.
+    const planned = appTargets.filter(([app, label]) => shouldKeep(app, label));
+    const suffix = planned.length ? ` Excepto ${planned.map(([, label]) => label).join(", ")}.` : "";
+    await speak(`Entendido. Cerrando las aplicaciones compatibles.${suffix}`);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    for (const [app, label] of appTargets) {
+      if (shouldKeep(app, label)) {
         skipped.push(label);
         continue;
       }
@@ -117,10 +110,10 @@
       } catch {}
     }
 
-    const suffix = skipped.length
-      ? ` He dejado abiertas: ${skipped.join(", ")}.`
-      : "";
-    await speak(`He cerrado las aplicaciones compatibles que estaban abiertas.${suffix}`);
+    // Si Jarvis sobrevivió al cierre, deja constancia del resultado sin volver a iniciar una cola larga.
+    if (typeof window.JarvisConsciousness?.set === "function") {
+      window.JarvisConsciousness.set({ lastResult: `Cierre global: ${closed.length} aplicaciones` });
+    }
   };
 
   const originalProcessInput = window.processInput;
@@ -129,7 +122,6 @@
     const command = removeWake(text);
     const aliases = loadAliases();
 
-    // Aprender un sinónimo: "aprende que X significa Y".
     let match = command.match(/^aprende(?: que)? (.+?) (?:significa|es igual a) (.+)$/);
     if (match) {
       const alias = normalize(match[1]);
@@ -142,9 +134,7 @@
       }
     }
 
-    if (aliases[command]) {
-      return originalProcessInput(aliases[command], source);
-    }
+    if (aliases[command]) return originalProcessInput(aliases[command], source);
 
     if (/^(silencio|silenciate|silenciate ya|silenciar todo|silencia todo|callate)$/i.test(command)) {
       stopEverything();
@@ -187,9 +177,7 @@
   };
 
   window.JarvisSystemCommands = {
-    version: "1.0.0",
-    clearLearnedCommands() {
-      localStorage.removeItem(STORAGE_KEY);
-    }
+    version: "1.0.1",
+    clearLearnedCommands() { localStorage.removeItem(STORAGE_KEY); }
   };
 })();
