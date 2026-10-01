@@ -37,6 +37,13 @@
 
   const withSpotify = async (action, successMessage) => {
     try {
+      // Keep the existing Windows bridge: open Spotify before using its active device.
+      // If the app is already open, the bridge simply leaves it available.
+      if (typeof window.openLocalApp === "function") {
+        await window.openLocalApp("spotify", "Spotify");
+        await new Promise((resolve) => setTimeout(resolve, 700));
+      }
+
       const api = ensureSpotify();
       const result = await action(api);
       await speak(typeof successMessage === "function" ? successMessage(result) : successMessage);
