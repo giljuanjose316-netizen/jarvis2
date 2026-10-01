@@ -249,6 +249,28 @@
     return api("/me/player/next?device_id=" + encodeURIComponent(device.id), { method: "POST" });
   }
 
+  async function previous() {
+    const device = await getPlayableDevice();
+    return api("/me/player/previous?device_id=" + encodeURIComponent(device.id), { method: "POST" });
+  }
+
+  async function setVolume(volumePercent) {
+    const volume = Math.max(0, Math.min(100, Math.round(Number(volumePercent))));
+    if (!Number.isFinite(volume)) throw new Error("Volumen no válido.");
+    const device = await getPlayableDevice();
+    if (device.supports_volume === false) {
+      throw new Error("El dispositivo activo no permite controlar el volumen desde Spotify.");
+    }
+    await api("/me/player/volume?volume_percent=" + encodeURIComponent(volume) + "&device_id=" + encodeURIComponent(device.id), {
+      method: "PUT"
+    });
+    return volume;
+  }
+
+  async function getPlaybackState() {
+    return api("/me/player?market=CO");
+  }
+
   async function current() { return api("/me/player/currently-playing?market=CO"); }
 
   async function handleCallback() {
@@ -281,6 +303,9 @@
     pause,
     resume,
     next,
+    previous,
+    setVolume,
+    getPlaybackState,
     current,
     getAccessToken,
     handleCallback,
