@@ -1250,6 +1250,11 @@ if (!SpeechRecognition) {
 
   recognition.onend = () => {
     voiceListening = false;
+
+    // voice-runtime intentionally stops recognition while Jarvis processes
+    // a command. In that case, it owns the restart.
+    if (recognition.__jarvisHold) return;
+
     if (!document.hidden) restartVoiceListener();
   };
 
