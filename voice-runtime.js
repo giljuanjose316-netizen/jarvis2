@@ -71,7 +71,23 @@
     if (transcript) transcript.textContent = `Micrófono: ${clean}`;
 
     if (typeof window.processInput === "function") {
-      await window.processInput(clean, "voice");
+      // Pause recognition while Jarvis processes and speaks the command.
+      // This prevents the microphone from hearing Jarvis's own response.
+      try {
+        recognitionInstance.__jarvisHold = true;
+        recognitionInstance.stop();
+      } catch {}
+
+      try {
+        await window.processInput(clean, "voice");
+      } finally {
+        recognitionInstance.__jarvisHold = false;
+        window.setTimeout(() => {
+          try {
+            recognitionInstance.start();
+          } catch {}
+        }, 250);
+      }
     }
   };
 
